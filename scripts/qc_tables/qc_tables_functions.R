@@ -447,8 +447,11 @@ compute_med_trt_bio_rep = function(norm_counts, cell_line_cols, sig_cols) {
 #'
 #' @import dplyr
 generate_cell_plate_table <- function(normalized_counts, filtered_counts, cell_line_cols, sig_cols, pseudocount = 20, contains_poscon = TRUE, poscon = "trt_poscon", negcon = "ctl_vehicle",
-                                      nc_variability_threshold = 1, error_rate_threshold = 0.05, pc_viability_threshold = 0.25, nc_raw_count_threshold = 40) {
-  cell_line_list <- strsplit(cell_line_cols, ",")[[1]]
+                                      nc_variability_threshold = 1, error_rate_threshold = 0.05, pc_viability_threshold = 0.25, nc_raw_count_threshold = 40
+                                      ) {
+  
+  browser()
+  cell_line_list <- cell_line_cols # strsplit(cell_line_cols, ",")# [[1]]
   cell_line_plate_grouping <- c(cell_line_list, "pcr_plate", "pert_plate", "project_code", "day") # Define columns to group by
   print(paste0("Computing cell + plate QC metrics grouping by ", paste0(cell_line_plate_grouping, collapse = ","), "....."))
 

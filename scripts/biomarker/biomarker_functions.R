@@ -117,11 +117,12 @@ univariate_biomarker_table <- function(Y, file,
   }
   
   if(is.null(features)){
-    features <-  substr(setdiff(h5ls(file)$group, c("/",  "/Lineage_Table")),2,100)
+    features <-  substr(unique(dplyr::filter(h5ls(file), name == "mat")$group),2,100)
   }else{
-    features <- intersect(features, substr(setdiff(h5ls(file)$group, c("/",  "/Lineage_Table")),2,100))
+    features <- intersect(features, substr(unique(dplyr::filter(h5ls(file), name == "mat")$group),2,100))
   }
   print(features)
+  
   
   RESULTS <- list()
   for(feat in features){
@@ -375,8 +376,6 @@ RF_feature_sets <- function(Y, W = NULL, file) {
   }
 
 
-  CN <- read_dataset(file = file, dataset = 'CopyNumber')
-  colnames(CN) %<>% paste0("CN_", .)
   MUT <- read_dataset(file = file, dataset = 'Mutation')
   colnames(MUT) %<>% paste0("MUT_", .)
   FUS <- read_dataset(file = file, dataset = 'Fusion')
@@ -384,14 +383,11 @@ RF_feature_sets <- function(Y, W = NULL, file) {
   LIN <- read_dataset(file = file, dataset = 'Lineage')
   colnames(LIN) %<>% paste0("LIN_", .)
 
-  cl = intersect(rownames(MUT), rownames(CN)) %>%
-    intersect(rownames(FUS)) %>%
+  cl = intersect(rownames(MUT), rownames(FUS)) %>%
     intersect(rownames(LIN)) %>%
-    # intersect(rownames(SIG)) %>%
     intersect(rownames(Y))
 
-  X.DNA <- cbind(CN[cl, ], MUT[cl, ]) %>%
-    cbind(FUS[cl, ]) %>%
+  X.DNA <- cbind(MUT[cl, ], FUS[cl, ]) %>%
     cbind(LIN[cl, ])
 
   if(!is.null(W)){
@@ -400,7 +396,7 @@ RF_feature_sets <- function(Y, W = NULL, file) {
 
   X.DNA <- X.DNA[rowMeans(is.finite(X.DNA)) > 0.9, ,drop = FALSE]
 
-  rm(CN, MUT, FUS, LIN)
+  rm(MUT, FUS, LIN)
   EXP <- read_dataset(file = file, dataset = 'Expression')
   EXP <- EXP[rowMeans(is.finite(EXP)) > 0.9, ,drop = FALSE]
   colnames(EXP) %<>% paste0("EXP_", .)
