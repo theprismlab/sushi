@@ -694,26 +694,21 @@ generate_pool_well_qc_table <- function(normalized_counts, pool_well_delta_thres
   ### POOL_WELL_OUTLIERS
   ## Flag pool/well combinations based on the fraction of cell lines in a pool + well that are some distance from the pool + well median.
   ## This is in control wells only
-  pool_well_outliers <- normalized_counts %>%
+  # To do: this flags all wells not just the control wells
+  pool_well_outliers = normalized_counts |>
     # Consider only cell line barcodes
-    filter(is.na(cb_name)) %>%
+    dplyr::filter(is.na(cb_name)) |>
     # Get the median value of the pool in each well
-    group_by(pcr_plate, pcr_well, pert_type, pool_id) %>%
-    mutate(
-      pool_well_median = median(log2_normalized_n, na.rm = TRUE),
-      n_cell_lines = n_distinct(paste(lua, depmap_id, cell_set, sep = "_"))
-    ) %>%
-    mutate(
-      delta_from_pool_well_median = abs(log2_normalized_n - pool_well_median)
-    ) %>%
-    group_by(pcr_plate, pcr_well, pert_type, pool_id) %>%
-    reframe(
-      n_outliers = sum(delta_from_pool_well_median > pool_well_delta_threshold, na.rm = TRUE),
-      n_cell_lines = max(n_cell_lines)
-    ) %>%
-    ungroup() %>%
-    mutate(fraction_outliers = n_outliers / n_cell_lines,
-      qc_flag = if_else(fraction_outliers > pool_well_fraction_threshold, "pool_well_outliers", NA_character_))
+    dplyr::group_by(pcr_plate, pcr_well, pert_type, pool_id) |>
+    dplyr::mutate(pool_well_median = median(log2_normalized_n, na.rm = TRUE),
+                  n_cell_lines = dplyr::n_distinct(lua, depmap_id, cell_set),
+                  delta_from_pool_well_median = abs(log2_normalized_n - pool_well_median)) |>
+    dplyr::summarise(n_outliers = sum(delta_from_pool_well_median > pool_well_delta_threshold, na.rm = TRUE),
+                     n_cell_lines = max(n_cell_lines),
+                     .groups = "drop") |>
+    dplyr::mutate(fraction_outliers = n_outliers / n_cell_lines,
+                  qc_flag = if_else(fraction_outliers > pool_well_fraction_threshold,
+                                    "pool_well_outliers", NA_character_))
 }
 
 # Get the qc parameters from the qc_params json file
