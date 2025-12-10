@@ -104,13 +104,6 @@ prism_barcode_counts <- read_data_table(args$prism_barcode_counts)
 print(paste0("Reading in ", args$cell_line_meta, "....."))
 cell_line_meta <- read_data_table(args$cell_line_meta)
 
-# Join unknown_counts and prism_barcode_counts with sample_meta to ensure only appropriate wells are kept
-unknown_counts <- unknown_counts %>%
-  right_join(sample_meta %>% select(pcr_plate, pcr_well), by = c("pcr_plate", "pcr_well"))
-
-prism_barcode_counts <- prism_barcode_counts %>%
-    right_join(sample_meta %>% select(pcr_plate, pcr_well), by =c("pcr_plate", "pcr_well"))
-
 # Check if the output directory exists, if not create it
 if (!dir.exists(paste0(args$out, "/qc_tables"))) {
   dir.create(paste0(args$out, "/qc_tables"))
@@ -140,7 +133,7 @@ thresholds <- load_thresholds_from_json(args$qc_params)
 
 # Calculate the number of expected poscons and negcons
 n_expected_controls <- sample_meta %>%
-  filter(pert_type %in% c("trt_poscon", "ctl_vehicle")) %>%
+  dplyr::filter(pert_type %in% c(negcon, poscon)) %>%
   group_by(pert_plate, pcr_plate, pert_type) %>%
   summarize(unique_bio_rep = n_distinct(bio_rep), .groups = "drop") %>%
   pivot_wider(
