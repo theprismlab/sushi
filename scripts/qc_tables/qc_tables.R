@@ -113,9 +113,7 @@ if (!dir.exists(paste0(args$out, "/qc_tables"))) {
 contains_poscon <- any(sample_meta$pert_type == args$poscon_type)
 
 # DEFINE COLUMNS
-cell_line_cols <- args$cell_line_cols
-cell_line_cols_list <- strsplit(cell_line_cols, ",")[[1]]
-cell_plate_list <- c(cell_line_cols, "pcr_plate")
+cell_line_cols = unlist(strsplit(args$cell_line_cols, ","))
 id_cols <- args$id_cols
 id_cols_list <- strsplit(id_cols, ",")[[1]]
 sig_cols = unlist(strsplit(args$sig_cols, ","))
@@ -145,7 +143,7 @@ n_expected_controls <- sample_meta %>%
 # ID COLS
 id_cols_table <- generate_id_cols_table(
   normalized_counts = normalized_counts, annotated_counts = annotated_counts, unknown_counts = unknown_counts,
-  cell_set_meta = cell_set_meta, id_cols_list = id_cols_list, cell_line_cols = cell_line_cols_list,
+  cell_set_meta = cell_set_meta, id_cols_list = id_cols_list, cell_line_cols = cell_line_cols,
   count_threshold = count_threshold, cb_meta = cb_meta, pseudocount = pseudocount
 )
 
@@ -185,7 +183,7 @@ filtered_counts_rm_ctl <- filtered_counts %>%
 
 plate_cell_table <- generate_cell_plate_table(
   normalized_counts = filtered_normalized_counts_rm_ctl, filtered_counts = filtered_counts_rm_ctl,
-  cell_line_cols = cell_plate_list, sig_cols = sig_cols, pseudocount = pseudocount, contains_poscon = contains_poscon,
+  cell_line_cols = cell_line_cols, sig_cols = sig_cols, pseudocount = pseudocount, contains_poscon = contains_poscon,
   poscon = poscon, negcon = negcon,
   nc_variability_threshold = thresholds$nc_variability_threshold,
   error_rate_threshold = thresholds$error_rate_threshold,
@@ -326,7 +324,7 @@ print("Computing variance decomposition table...")
 variance_decomp <- compute_variance_decomposition(
   normalized_counts = normalized_counts,
   metric = "n",
-  cell_line_cols = cell_line_cols_list,
+  cell_line_cols = cell_line_cols,
   id_cols = id_cols_list,
   negcon = negcon
 )
