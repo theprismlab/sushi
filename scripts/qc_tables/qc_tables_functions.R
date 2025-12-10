@@ -143,52 +143,42 @@ compute_read_stats <- function(annotated_counts, cell_set_meta, unknown_counts, 
 #' This function calculates control metrics.
 #'
 #' @param normalized_counts A data frame containing normalized read counts and associated metrics.
-#' @param group_cols A character vector specifying the grouping columns (default: `c("pcr_plate", "pcr_well")`).
+#' @param group_cols A character vector specifying the grouping columns
+#'                   (default: `c("pcr_plate", "pcr_well", "pert_plate", "cb_intercept")`).
 #' @param cb_meta A data frame containing control barcode metadata.
-#'
+#' @param pseudocount An integer specifying the pseudocount to add to all read counts.
 #' @return A data frame containing unique combinations of `group_cols` and the calculated metrics.
 #'
 #' @import dplyr
 #'
-calculate_cb_metrics <- function(normalized_counts, 
-                                 cb_meta,
-                                 group_cols = c("pcr_plate", "pcr_well", "pert_plate"),
+calculate_cb_metrics <- function(normalized_counts, cb_meta,
+                                 group_cols = c("pcr_plate", "pcr_well", "pert_plate", "cb_intercept"),
                                  pseudocount = 20) {
-  # Filter cb_meta by dropping any control barcodes without "well_norm"
-  # indicated under "cb_type"
+  # Filter cb_meta by dropping any control barcodes without "well_norm" indicated under "cb_type"
   if ("cb_type" %in% colnames(cb_meta)) {
     dropped_cbs = cb_meta |> dplyr::filter(cb_type != "well_norm")
-    
+
     if (nrow(dropped_cbs) > 0) {
       print("The following CBs are excluded from normalization.")
       print(dropped_cbs)
       cb_meta = cb_meta |> dplyr::filter(cb_type == "well_norm")
     }
   }
-  
-  valid_profiles <- normalized_counts %>%
-    dplyr::filter(
-      !pert_type %in% c(NA, "empty", "", "CB_only"), n != 0,
-      cb_ladder %in% unique(cb_meta$cb_ladder),
-      cb_name %in% unique(cb_meta$cb_name)
-    ) %>%
-    dplyr::group_by(across(all_of(group_cols))) %>%
-    dplyr::filter(dplyr::n() > 4) %>%
-    dplyr::ungroup()
-  fit_stats <- valid_profiles %>%
-    dplyr::group_by(across(all_of(group_cols))) %>%
-    dplyr::mutate(
-      log2_normalized_n = log2(n + pseudocount) + cb_intercept,
-      cb_mae = median(abs(cb_log2_dose - log2_normalized_n)),
-      mean_y = mean(cb_log2_dose),
-      residual2 = (cb_log2_dose - log2_normalized_n)^2,
-      squares2 = (cb_log2_dose - mean_y)^2,
-      cb_r2 = 1 - sum(residual2) / sum(squares2),
-      cb_spearman = cor(cb_log2_dose, log2(n + pseudocount), method = "spearman", use = "pairwise.complete.obs")
-    ) %>%
-    dplyr::ungroup() %>%
-    dplyr::distinct(across(any_of(c(group_cols, "cb_mae", "cb_r2", "cb_spearman", "cb_intercept", "log2_pseudovalue"))))
-    # To Do: Change how this distinct works!
+
+  # Pull out control barcodes used for normalization and calculate some stats
+  fit_stats = normalized_counts |>
+    dplyr::semi_join(cb_meta, by = c("cb_ladder", "cb_name")) |>
+    # To do: Potentially update group_cols to include "log2_pseudovalue"
+    dplyr::group_by(across(all_of(group_cols)), across(any_of(c("log2_pseudovalue")))) |>
+    dplyr::mutate(log2_norm_n = log2(n + pseudocount) + cb_intercept,
+                  residual2 = (cb_log2_dose - log2_norm_n)^2,
+                  squares2 = (cb_log2_dose - mean(cb_log2_dose))^2) |>
+    dplyr::summarise(cb_mae = median(abs(cb_log2_dose - log2_norm_n)),
+                     cb_r2 = 1 - sum(residual2) / sum(squares2),
+                     cb_spearman = cor(cb_log2_dose, log2(n + pseudocount),
+                                       method = "spearman", use = "pairwise.complete.obs"),
+                     .groups = "drop")
+
   return(fit_stats)
 }
 
@@ -215,7 +205,9 @@ generate_id_cols_table <- function(annotated_counts, normalized_counts, unknown_
 
   read_stats_grouping_cols <- c(id_cols_list, "pert_type", "pert_plate")
 
-  cb_metrics <- calculate_cb_metrics(normalized_counts, cb_meta, group_cols = c(id_cols_list, "pert_plate"), pseudocount = pseudocount)
+  cb_metrics <- calculate_cb_metrics(normalized_counts, cb_meta,
+                                     group_cols = c(id_cols_list, "pert_plate", "cb_intercept"),
+                                     pseudocount = pseudocount)
 
   read_stats <- compute_read_stats(
     annotated_counts = annotated_counts, unknown_counts = unknown_counts, cb_metrics = cb_metrics, group_cols = read_stats_grouping_cols,
