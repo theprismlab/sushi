@@ -855,7 +855,7 @@ compute_contamination_qc_tables <- function(prism_barcode_counts,
 
   # --- 3. Get a list of expected reads ---
   expected_cell_lines <- cell_set_and_pool_meta %>%
-    left_join(cell_line_meta, by = "depmap_id") %>%
+    left_join(cell_line_meta, by = c("depmap_id", "lua")) %>%
     pull(forward_read_barcode) %>%
     unique()
 
