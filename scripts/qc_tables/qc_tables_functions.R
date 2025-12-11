@@ -80,16 +80,13 @@ compute_read_stats <- function(annotated_counts, cell_set_meta, unknown_counts, 
   # Compute expected lines from cell_set_meta
   expected_lines <- compute_expected_lines(cell_set_meta, cell_line_cols)
 
-  # Group unknown_counts by group_cols
-  unknown_counts <- unknown_counts %>%
-    dplyr::left_join(unique(annotated_counts %>% select(pcr_plate, pcr_well, pert_type, pert_plate)),
-      by = c("pcr_plate", "pcr_well")
-    ) %>%
-    dplyr::group_by(across(all_of(group_cols))) %>%
-    dplyr::summarise(
-      n = sum(.data[[metric]], na.rm = TRUE),
-      expected_read = FALSE
-    )
+  # Sum up unknown reads per well and add group_cols as annotations from annotated_counts
+  unknown_counts = unknown_counts |>
+    dplyr::group_by(pcr_plate, pcr_well) |>
+    dplyr::summarise(n = sum(.data[[metric]], na.rm = TRUE),
+                     expected_read = FALSE, .groups = "drop") |>
+    dplyr::left_join(annotated_counts |> dplyr::distinct(across(all_of(group_cols))),
+                     by = c("pcr_plate", "pcr_well"))
 
   plate_well <- annotated_counts %>%
     dplyr::left_join(expected_lines, by = "cell_set") %>%
@@ -112,7 +109,7 @@ compute_read_stats <- function(annotated_counts, cell_set_meta, unknown_counts, 
       # Number of expected lines based on metadata
       n_expected_lines = max(n_expected_lines, na.rm = TRUE), # Bring forward from join
       # Fraction of cell lines with coverage above count threshold
-      fraction_cl_recovered = n_lines_recovered / max(n_expected_lines, na.rm = TRUE),
+      fraction_cl_recovered = n_lines_recovered / n_expected_lines,
       # Ratio of control barcode reads to cell line reads
       cb_cl_ratio_well = n_cb_reads / n_expected_reads,
       # Fraction of reads mapping to control barcodes
@@ -122,14 +119,12 @@ compute_read_stats <- function(annotated_counts, cell_set_meta, unknown_counts, 
 
   plate_pert_type <- plate_well %>%
     dplyr::left_join(cb_metrics %>% select(pcr_plate, pcr_well, cb_mae, cb_spearman), by = c("pcr_plate", "pcr_well")) %>%
-    dplyr::filter(median_cb_reads > cb_threshold) %>%
-    dplyr::filter(fraction_expected_reads > expected_reads_threshold) %>%
-    dplyr::filter(cb_spearman > cb_spearman_threshold & cb_mae < cb_mae_threshold) %>%
+    dplyr::filter(median_cb_reads > cb_threshold,
+                  fraction_expected_reads > expected_reads_threshold,
+                  cb_spearman > cb_spearman_threshold & cb_mae < cb_mae_threshold) %>%
     dplyr::group_by(pcr_plate, pert_type) %>%
-    dplyr::summarise(
-      cb_cl_ratio_plate = median(cb_cl_ratio_well, na.rm = TRUE),
-    ) %>%
-    dplyr::ungroup()
+    dplyr::summarise(cb_cl_ratio_plate = median(cb_cl_ratio_well, na.rm = TRUE),
+                     .groups = "drop")
 
   # Combine plate_well and plate_pert_type
   result <- plate_well %>%
@@ -262,8 +257,8 @@ compute_error_rate <- function(df, metric = "log2_normalized_n", group_cols = c(
                                negcon = "ctl_vehicle", poscon = "trt_poscon", contains_poscon = TRUE) {
 
   if (contains_poscon) {
-    print(paste0("Computing error rate using ", negcon, " and ", poscon, "....."))
-    print(paste0("Grouping by ", paste0(group_cols, collapse = ","), "....."))
+    message("Computing error rate using ", negcon, " and ", poscon, ".....")
+    message("Grouping by ", paste(group_cols, collapse = ", "), ".....")
     result <- df %>%
       dplyr::filter(
         pert_type %in% c(negcon, poscon),
@@ -283,8 +278,7 @@ compute_error_rate <- function(df, metric = "log2_normalized_n", group_cols = c(
       ) %>%
       dplyr::ungroup()
     return(result)
-  }
-  else {
+  } else {
     print("No positive controls found. Unable to calculate error rate.")
   }
 }
@@ -307,10 +301,10 @@ compute_error_rate <- function(df, metric = "log2_normalized_n", group_cols = c(
 #' @import dplyr
 #' @importFrom tidyr pivot_wider
 #' @importFrom stats mad pnorm
-compute_ctl_medians_and_mad <- function(df, group_cols = c("depmap_id", "pcr_plate", "pert_plate"),
+compute_ctl_medians_and_mad <- function(df, group_cols = c("depmap_id", "lua", "pcr_plate", "pert_plate"),
                                         negcon = "ctl_vehicle", poscon = "trt_poscon", pseudocount = 20) {
-  print(paste0("Adding control median and MAD values for ", negcon, " and ", poscon, " if it exists....."))
-  print(paste0("Computing falses sensitivity probability for ", negcon, "....."))
+  message("Adding median and MAD values for ", negcon, " and ", poscon, " if it exists.....")
+  message("Computing falses sensitivity probability for ", negcon, ".....")
   # Group and compute medians/MADs
   result <- df %>%
     dplyr::filter(pert_type %in% c(negcon, poscon)) %>%
@@ -323,7 +317,7 @@ compute_ctl_medians_and_mad <- function(df, group_cols = c("depmap_id", "pcr_pla
       mad_raw = mad(log2(n + pseudocount))
     ) %>%
     dplyr::ungroup() %>%
-    pivot_wider(
+    tidyr::pivot_wider(
       names_from = pert_type,
       values_from = c(median_log_normalized, mad_log_normalized, median_raw, mad_raw, n_replicates),
       names_sep = "_"
@@ -356,21 +350,22 @@ compute_ctl_medians_and_mad <- function(df, group_cols = c("depmap_id", "pcr_pla
 #' - `lfc_raw`: Log fold change for raw data.
 #'
 #' @import dplyr
-compute_control_lfc <- function(df, negcon = "ctl_vehicle", poscon = "trt_poscon", grouping_cols = c("depmap_id", "pcr_plate", "pert_plate"), contains_poscon = TRUE) {
-  print(paste0("Computing log fold change for ", negcon, " and ", poscon, "....."))
+compute_control_lfc <- function(df, negcon = "ctl_vehicle", poscon = "trt_poscon",
+                                grouping_cols = c("depmap_id", "pcr_plate", "pert_plate"), 
+                                contains_poscon = TRUE) {
+  message("Computing log fold change for ", negcon, " and ", poscon, ".....")
   if (contains_poscon) {
-  result <- df %>%
-    dplyr::mutate(
-      lfc_trt_poscon = .data[[paste0("median_log_normalized_", poscon)]] -
-        .data[[paste0("median_log_normalized_", negcon)]],
-      lfc_raw_trt_poscon = .data[[paste0("median_raw_", poscon)]] -
-        .data[[paste0("median_raw_", negcon)]]
-    ) %>%
-    dplyr::select(all_of(grouping_cols), lfc_trt_poscon, lfc_raw_trt_poscon) %>%
-    dplyr::mutate(viability_trt_poscon = 2^lfc_trt_poscon)
-  return(result)
-  }
-  else {
+    result <- df %>%
+      dplyr::mutate(
+        lfc_trt_poscon = .data[[paste0("median_log_normalized_", poscon)]] -
+          .data[[paste0("median_log_normalized_", negcon)]],
+        lfc_raw_trt_poscon = .data[[paste0("median_raw_", poscon)]] -
+          .data[[paste0("median_raw_", negcon)]]
+      ) %>%
+      dplyr::select(all_of(grouping_cols), lfc_trt_poscon, lfc_raw_trt_poscon) %>%
+      dplyr::mutate(viability_trt_poscon = 2^lfc_trt_poscon)
+    return(result)
+  } else {
     print("No positive controls found. Unable to calculate log fold change.")
   }
 }
@@ -415,9 +410,9 @@ compute_cl_fractions <- function(df, metric = "n", grouping_cols = c("pcr_plate"
 compute_med_trt_bio_rep = function(norm_counts, cell_line_cols, sig_cols) {
   med_trt_bio_reps = norm_counts |>
     dplyr::filter(pert_type == "trt_cp") |>
-    dplyr::group_by(dplyr::pick(tidyselect::all_of(unique(c(cell_line_cols, sig_cols, "pert_plate"))))) |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(unique(c(cell_line_cols, sig_cols, "pert_plate"))))) |>
     dplyr::summarise(num_trt_bio_reps = dplyr::n(), .groups = "drop") |>
-    dplyr::group_by(dplyr::pick(tidyselect::all_of(unique(c(cell_line_cols, "pert_plate"))))) |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(unique(c(cell_line_cols, "pert_plate"))))) |>
     dplyr::summarise(med_num_trt_bio_reps = median(num_trt_bio_reps), .groups = "drop")
 
   return(med_trt_bio_reps)
@@ -438,8 +433,12 @@ compute_med_trt_bio_rep = function(norm_counts, cell_line_cols, sig_cols) {
 #' - Fractions of reads contributed by each cell line.
 #'
 #' @import dplyr
-generate_cell_plate_table <- function(normalized_counts, filtered_counts, cell_line_cols, sig_cols, pseudocount = 20, contains_poscon = TRUE, poscon = "trt_poscon", negcon = "ctl_vehicle",
-                                      nc_variability_threshold = 1, error_rate_threshold = 0.05, pc_viability_threshold = 0.25, nc_raw_count_threshold = 40) {
+generate_cell_plate_table <- function(normalized_counts, filtered_counts, n_expected_controls,
+                                      cell_line_cols, sig_cols,
+                                      pseudocount = 20, contains_poscon = TRUE,
+                                      poscon = "trt_poscon", negcon = "ctl_vehicle",
+                                      nc_variability_threshold = 1, error_rate_threshold = 0.05,
+                                      pc_viability_threshold = 0.25, nc_raw_count_threshold = 40) {
   # Columns to group control replicates cell lines on a plate
   cell_line_plate_grouping =  unique(c(cell_line_cols, "pcr_plate", "pert_plate", "project_code", "day"))
   message("Computing cell + plate QC metrics grouping by ", paste(cell_line_plate_grouping, collapse = ", "), ".....")
@@ -511,16 +510,10 @@ generate_cell_plate_table <- function(normalized_counts, filtered_counts, cell_l
       dplyr::ungroup()
     # Add the n_expected_controls values
     plate_cell_table <- plate_cell_table %>%
-      dplyr::left_join(
-        n_expected_controls,
-        by = c("pcr_plate", "pert_plate")
-      ) %>%
-      dplyr::mutate(
-        fraction_expected_poscon = n_replicates_trt_poscon/n_expected_trt_poscon,
-        fraction_expected_negcon = n_replicates_ctl_vehicle/n_expected_ctl_vehicle
-      )
-  }
-  else {
+      dplyr::left_join(n_expected_controls, by = c("pcr_plate", "pert_plate")) %>%
+      dplyr::mutate(fraction_expected_poscon = n_replicates_trt_poscon/n_expected_trt_poscon,
+                    fraction_expected_negcon = n_replicates_ctl_vehicle/n_expected_ctl_vehicle)
+  } else {
     print(paste0("Merging ", paste0(cell_line_plate_grouping, collapse = ","), " QC tables together....."))
     print("medians_and_mad")
     print(colnames(medians_and_mad))
@@ -742,8 +735,7 @@ generate_pcr_plate_qc_flags_table <- function(plate_cell_table, fraction_expecte
       )
     ) %>%
     filter(!is.na(qc_flag))
-  }
-  else {
+  } else {
     table <- plate_cell_table %>%
       dplyr::select(fraction_expected_negcon, pcr_plate, pert_plate) %>%
       unique() %>%
