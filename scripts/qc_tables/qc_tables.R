@@ -142,7 +142,7 @@ n_expected_controls <- sample_meta %>%
 # ID COLS
 id_cols_table <- generate_id_cols_table(
   normalized_counts = normalized_counts, annotated_counts = annotated_counts, unknown_counts = unknown_counts,
-  cell_set_meta = cell_set_meta, id_cols_list = id_cols, cell_line_cols = cell_line_cols,
+  cell_set_meta = cell_set_meta, id_cols = id_cols, cell_line_cols = cell_line_cols,
   count_threshold = count_threshold, cb_meta = cb_meta, pseudocount = pseudocount
 )
 
@@ -156,7 +156,7 @@ id_cols_qc_flags_table <- id_cols_qc_flags(id_cols_table = id_cols_table,
                                            cb_cl_ratio_high_negcon = thresholds$cb_cl_ratio_high_negcon,
                                            well_reads_threshold = thresholds$well_reads_threshold)
 
-id_cols_filtered_normalized_counts <- dplyr::anti_join(normalized_counts, id_cols_qc_flags_table, by = c("pcr_plate", "pcr_well"))
+id_cols_filtered_normalized_counts <- dplyr::anti_join(normalized_counts, id_cols_qc_flags_table, by = id_cols)
 
 
 # POOL WELL
