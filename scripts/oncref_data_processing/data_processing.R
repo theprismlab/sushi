@@ -112,7 +112,10 @@ qc_table <- normalized_counts %>%
                 SSMD = DR / sqrt(NC.mad ^ 2 + PC.mad ^ 2)) %>%
   dplyr::mutate(PASS = (error_rate <= 0.05) & (DR > 2) & (NC.n >= 16) & (PC.n >= 16) & (NC.mad <= 1) & (median_negcon_raw_count > 40)) %>%
   dplyr::distinct() %>%
+  dplyr::group_by(CompoundPlate, cell_set, lua, pool_id, depmap_id) %>%
+  dplyr::mutate(n.PASS = sum(PASS, na.rm = T)) %>% 
   dplyr::ungroup()
+
 
 
 
@@ -133,12 +136,15 @@ l2fc = compute_l2fc(normalized_counts = normalized_counts,
                     count_col_name = "log2_normalized_n",
                     cell_line_col = c("cell_set", "lua", "depmap_id", "pool_id", "growth_condition")) %>% 
   dplyr::semi_join(qc_table %>% 
-                     dplyr::filter(PASS)) %>% 
+                     dplyr::filter(PASS, n.PASS > 1)) %>% 
   dplyr::mutate(negcon_log2_norm_n = log2(control_median_normalized_n)) %>%
   dplyr::group_split(bio_rep, CompoundPlate, SampleID, pert_dose, pert_dose_unit, day) %>%
   lapply(apply_bias_correction, raw_l2fc_col = "l2fc", growth_pattern_col = "growth_condition") %>%
   dplyr::bind_rows() %>% 
   dplyr::ungroup()
+
+
+
 
 # Collapse l2fcs ----
 
@@ -503,3 +509,4 @@ conf.pools %>%
                      reshape2::melt()) %>% 
   reshape2::acast(Var1 ~ Var2) %>% 
   write.csv("OncRef data/PRISMOncologyReferenceSeqConfounderMatrix.csv")
+
