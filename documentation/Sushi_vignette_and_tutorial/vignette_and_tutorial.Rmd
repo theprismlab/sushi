@@ -3,7 +3,7 @@ title: "PRISM Sushi Vignette and Documentation"
 author: 
   - "PRISM Analytics Team" 
   - "prism@broadinstitute.org"
-date: "Compiled October 2025"
+date: "Compiled December 2025"
 output: 
   html_document:
     toc: true
@@ -148,14 +148,20 @@ pseudocount <- 0
 input_id_cols <- c("pcr_plate", "pcr_well")
 negcon_cols <- c("pcr_plate", "pert_vehicle")
 
-# Normalize your counts ----
-normalized_counts = normalize(X = filtered_counts, 
-                              id_cols = input_id_cols,
-                              CB_meta = CB_meta, 
-                              pseudocount = pseudocount)
+# Identify control barcodes that can be used for normalization
+cb_annots = flag_control_bcs(filtered_count = filtered_counts,
+                             CB_meta = CB_meta,
+                             id_cols = input_id_cols,
+                             negcon_type = "ctl_vehicle",
+                             cb_mad_cutoff = 1,
+                             req_negcon_reps = 6)
 
-normalized_counts = add_pseudovalue(normalized_counts, negcon_cols,
-                                    read_detection_limit = 10, negcon_type = "ctl_vehicle")
+# Normalize read counts
+normalized_counts = normalize(X = filtered_counts, cb_annots = cb_annots,
+                              id_cols = input_id_cols, pseudocount = pseudocount)
+normalized_counts = add_pseudovalue(normalized_counts, negcon_cols = negcon_cols,
+                                    read_detection_limit = 10,
+                                    negcon_type = "ctl_vehicle")
 
 head(normalized_counts)
 ```
@@ -169,7 +175,8 @@ library(ggrepel)
 # Plot control barcode ladder ----
 normalized_counts %>% 
   dplyr::filter(!is.na(cb_name) & !is.na(cb_log2_dose)) %>%
-  mutate(pcr_profile = paste0(pcr_plate,";", pcr_well)) %>%
+  mutate(pcr_profile = paste0(pcr_plate,";", pcr_well),
+         cb_log2_dose = round(cb_log2_dose, 5)) %>%
   dplyr::group_by(pcr_profile) %>%
   filter(pcr_plate == "SEQ004_S1.X1.PR2025A") %>%
   filter(pcr_well == "A01") %>%
@@ -179,7 +186,7 @@ normalized_counts %>%
   geom_point() +
   geom_abline(aes(slope = 1, intercept = cb_intercept) , color = 'blue') +
   geom_text_repel(nudge_y = 0.2) +
-  labs(x = 'log2(n)', y = 'log2(dose)') + 
+  labs(x = 'log2(n)', y = 'log2(dose)', color = "CB log2 dose") + 
   facet_wrap(pcr_profile~.) +
   theme_bw() + theme(text = element_text(size = 10))
 ```
