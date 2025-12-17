@@ -46,10 +46,9 @@ flag_control_bcs = function(filtered_counts, CB_meta, id_cols, negcon_type,
     dplyr::filter(!is.na(cb_name)) |>
     dplyr::distinct(dplyr::across(tidyselect::all_of(c(id_cols, "pert_type", "cb_ladder", "cb_name", "n")))) |>
     dplyr::left_join(small_CB_meta, by = c("cb_ladder", "cb_name")) |>
-    dplyr::mutate(keep_cb = dplyr::case_when(
-      is.na(keep_cb) ~ "Not in CB meta", # Flag CBs not in CB_meta
-      n == 0 ~ "Undetected CB", # Flag undetected CBs
-      .default = "Yes")
+    dplyr::mutate(keep_cb = dplyr::case_when(is.na(keep_cb) ~ "Not in CB meta", # Flag CBs not in CB_meta
+                                             n == 0 ~ "Undetected CB", # Flag undetected CBs
+                                             .default = "Yes")
     )
   # Report if any CBs were flagged
   total_cbs = nrow(cbs_annots)
@@ -102,7 +101,7 @@ flag_control_bcs = function(filtered_counts, CB_meta, id_cols, negcon_type,
                                    "Not enough valid CBs", keep_cb)) |>
     dplyr::ungroup()
 
-  # Print out the number of PRC wells that can be normalized
+  # Print out the number of PCR wells that can be normalized
   num_pcr_wells = filtered_counts |> dplyr::distinct(dplyr::across(tidyselect::all_of(id_cols))) |> nrow()
   num_passing_wells = cbs_annots |>
     dplyr::filter(keep_cb == "Yes") |>
