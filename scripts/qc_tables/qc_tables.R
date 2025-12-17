@@ -104,13 +104,6 @@ prism_barcode_counts <- read_data_table(args$prism_barcode_counts)
 print(paste0("Reading in ", args$cell_line_meta, "....."))
 cell_line_meta <- read_data_table(args$cell_line_meta)
 
-# Join unknown_counts and prism_barcode_counts with sample_meta to ensure only appropriate wells are kept
-unknown_counts <- unknown_counts %>%
-  right_join(sample_meta %>% select(pcr_plate, pcr_well), by = c("pcr_plate", "pcr_well"))
-
-prism_barcode_counts <- prism_barcode_counts %>%
-    right_join(sample_meta %>% select(pcr_plate, pcr_well), by =c("pcr_plate", "pcr_well"))
-
 # Check if the output directory exists, if not create it
 if (!dir.exists(paste0(args$out, "/qc_tables"))) {
   dir.create(paste0(args$out, "/qc_tables"))
@@ -120,11 +113,8 @@ if (!dir.exists(paste0(args$out, "/qc_tables"))) {
 contains_poscon <- any(sample_meta$pert_type == args$poscon_type)
 
 # DEFINE COLUMNS
-cell_line_cols <- args$cell_line_cols
-cell_line_cols_list <- strsplit(cell_line_cols, ",")[[1]]
-cell_plate_list <- c(cell_line_cols, "pcr_plate")
-id_cols <- args$id_cols
-id_cols_list <- strsplit(id_cols, ",")[[1]]
+cell_line_cols = unlist(strsplit(args$cell_line_cols, ","))
+id_cols = unlist(strsplit(args$id_cols, ","))
 sig_cols = unlist(strsplit(args$sig_cols, ","))
 count_threshold <- as.numeric(args$count_threshold)
 pseudocount <- as.numeric(args$pseudocount)
@@ -140,7 +130,7 @@ thresholds <- load_thresholds_from_json(args$qc_params)
 
 # Calculate the number of expected poscons and negcons
 n_expected_controls <- sample_meta %>%
-  filter(pert_type %in% c("trt_poscon", "ctl_vehicle")) %>%
+  dplyr::filter(pert_type %in% c(negcon, poscon)) %>%
   group_by(pert_plate, pcr_plate, pert_type) %>%
   summarize(unique_bio_rep = n_distinct(bio_rep), .groups = "drop") %>%
   pivot_wider(
@@ -152,7 +142,7 @@ n_expected_controls <- sample_meta %>%
 # ID COLS
 id_cols_table <- generate_id_cols_table(
   normalized_counts = normalized_counts, annotated_counts = annotated_counts, unknown_counts = unknown_counts,
-  cell_set_meta = cell_set_meta, id_cols_list = id_cols_list, cell_line_cols = cell_line_cols_list,
+  cell_set_meta = cell_set_meta, id_cols = id_cols, cell_line_cols = cell_line_cols,
   count_threshold = count_threshold, cb_meta = cb_meta, pseudocount = pseudocount
 )
 
@@ -166,7 +156,7 @@ id_cols_qc_flags_table <- id_cols_qc_flags(id_cols_table = id_cols_table,
                                            cb_cl_ratio_high_negcon = thresholds$cb_cl_ratio_high_negcon,
                                            well_reads_threshold = thresholds$well_reads_threshold)
 
-id_cols_filtered_normalized_counts <- dplyr::anti_join(normalized_counts, id_cols_qc_flags_table, by = c("pcr_plate", "pcr_well"))
+id_cols_filtered_normalized_counts <- dplyr::anti_join(normalized_counts, id_cols_qc_flags_table, by = id_cols)
 
 
 # POOL WELL
@@ -192,7 +182,8 @@ filtered_counts_rm_ctl <- filtered_counts %>%
 
 plate_cell_table <- generate_cell_plate_table(
   normalized_counts = filtered_normalized_counts_rm_ctl, filtered_counts = filtered_counts_rm_ctl,
-  cell_line_cols = cell_plate_list, sig_cols = sig_cols, pseudocount = pseudocount, contains_poscon = contains_poscon,
+  n_expected_controls = n_expected_controls,
+  cell_line_cols = cell_line_cols, sig_cols = sig_cols, pseudocount = pseudocount, contains_poscon = contains_poscon,
   poscon = poscon, negcon = negcon,
   nc_variability_threshold = thresholds$nc_variability_threshold,
   error_rate_threshold = thresholds$error_rate_threshold,
@@ -211,10 +202,8 @@ plate_cell_qc_flags_table <- plate_cell_qc_flags(
 
 
 plate_cell_filtered_normalized_counts <-
-  dplyr::anti_join(
-  pool_well_filtered_normalized_counts, plate_cell_qc_flags_table,
-  by = c("pcr_plate", "depmap_id", "lua", "pool_id")
-)
+  dplyr::anti_join(pool_well_filtered_normalized_counts, plate_cell_qc_flags_table,
+                   by = c("pcr_plate", "depmap_id", "lua", "pool_id"))
 
 
 # PCR PLATE
@@ -333,8 +322,8 @@ print("Computing variance decomposition table...")
 variance_decomp <- compute_variance_decomposition(
   normalized_counts = normalized_counts,
   metric = "n",
-  cell_line_cols = cell_line_cols_list,
-  id_cols = id_cols_list,
+  cell_line_cols = cell_line_cols,
+  id_cols = id_cols,
   negcon = negcon
 )
 variance_decomp_outpath <- paste0(args$out, "/qc_tables/variance_decomposition.csv")

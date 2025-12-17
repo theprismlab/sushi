@@ -64,6 +64,7 @@ pipeline {
             sectionHeaderStyle: sectionHeaderStyleBlue
         )
         string(name: 'CONTROL_BARCODE_META', defaultValue: 'h-a', description: 'Metadata for control barcodes. If the CBs exist in cellDB, this can simply be the lowercase cb_ladder name (ie, h-a). Otherwise, this must be a csv file located in the build directory.')
+        choice(name: 'NORM_METHOD', choices: ['normalize_then_shift', 'normalize_with_pseudocount'], description: 'Select the normalization method to use.')
         string(name: 'CTL_TYPES', defaultValue: 'ctl_vehicle', description: 'Value in the pert_type column of the sample meta that identifies the negative contols.')
         string(name: 'POSCON_TYPE', defaultValue: 'trt_poscon', description: 'Value in the pert_type column of the sample meta that identifies the positive controls.')
         string(name: 'CONTROL_COLS', defaultValue: 'cell_set,day,pcr_plate,replicate_plate,pert_vehicle', description: 'List of columns found in the sample meta that describe individual negative control conditions.')
@@ -273,7 +274,7 @@ pipeline {
                         'SEQUENCING_INDEX_COLS', 'ID_COLS', 'BARCODE_COL', 'LOW_ABUNDANCE_THRESHOLD', 'CHUNK_SIZE', 'REVERSE_INDEX2',
 
                         // normalize parameters
-                        'PSEUDOCOUNT', 'READ_DETECTION_LIMIT',
+                        'NORM_METHOD', 'PSEUDOCOUNT', 'READ_DETECTION_LIMIT',
 
                         // compute_l2fc parameters
                         'SIG_COLS', 'CONTROL_COLS', 'CELL_LINE_COLS', 'COUNT_COL_NAME', 'CTL_TYPES', 'COUNT_THRESHOLD', 'VIABILITY_CAP',

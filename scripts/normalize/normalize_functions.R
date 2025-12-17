@@ -1,107 +1,171 @@
-#'  normalize
+#' get_valid_norm_cbs
 #'
-#'  takes a filtered dataframe of raw read counts and normalizes
-#'  counts using control barcodes
+#' Extracts the control barcodes from the input filtered counts table and
+#' identifies control barcodes that can be used for normalization.
 #'
-#' @param X A dataframe of annotated readcounts that must include the following columns:
-#'           log2_n or n: raw readcounts or log2(n) of read counts. Computes log2_n if not present
-#'           cb_ladder: column indicating which CB ladder was used if any.
-#'           cb_log2_dose: log2 of dose at which control barcode was spiked in, if applicable
-#'           cb_name: contains the name of the control barcode that the read corresponds to, or NA
-#' @param id_cols a vector of columns used to identify each PCR well and to be carried forward in the pipeline.
-#'                These column names should be present in dataframe X.
-#' @param CB_meta CB_meta dataframe with the required columns "cb_ladder" and "cb_name".
-#' @param pseudocount A pseudocount to be added to the counts so that logs can be taken
-#' @returns Dataframe with counts normalized to control barcodes
+#' This function flags control barcodes that are not present in the CB meta table,
+#' undetected in sequencing, and have high MAD in the negative control wells of the PCR plate.
+#' It also flags PCR wells that do not have enough usable control barcodes (<= 4).
+#'
+#' @param filtered_counts Data table of filtered counts.
+#' @param CB_meta Data table of the control barcode metadata.
+#' @param id_cols Vector of columns that uniquely identify each PCR well.
+#' @param negcon_type String identifying the negative controls in the pert_type column.
+#' @param cb_mad_cutoff Numeric maximum MAD value for the control barcodes.
+#' @param req_negcon_reps Integer number of negative control replicates required for the MAD filter.
+#' @return Data frame of control barcodes with column indicating status or failure mode.
 #' @import tidyverse
-#' @import magrittr
-normalize <- function(X, id_cols, CB_meta, req_negcon_reps = 6, negcon_type = "ctl_vehicle",
-                      pseudocount = 0, cb_mad_cutoff = 1) {
-  # Required functions
-  require(magrittr)
-  require(tidyverse)
-
-  # Create log2_n with pseudocount ----
-  X %<>% dplyr::mutate(log2_n = log2(n + pseudocount))
-
-  # Filter out any duplicate cell lines if pool_id has a particular string ----
-  if('pool_id' %in% colnames(X)) {
-    X %<>% dplyr::filter(!grepl('|', pool_id, fixed = TRUE))
-  }
-
-  # Validation: Check that id_cols are present in the dataframe ----
-  if(!validate_columns_exist(id_cols, X)) {
-    stop('One or more id_cols (printed above) is NOT present in the supplied dataframe.')
-  }
-
-  # Filter cb_meta by dropping any control barcodes without "well_norm"
-  # indicated under "cb_type"
+flag_control_bcs = function(filtered_counts, CB_meta, id_cols, negcon_type,
+                            cb_mad_cutoff = 1, req_negcon_reps = 6) {
+  # Drop any control barcodes in CB_meta NOT marked with "well_norm".
   if ("cb_type" %in% colnames(CB_meta)) {
     dropped_cbs = CB_meta |> dplyr::filter(cb_type != "well_norm")
 
     if (nrow(dropped_cbs) > 0) {
-      print(" The following CBs are excluded from normalization.")
+      message("The following CBs in CB_meta are excluded from normalization.")
       print(dropped_cbs)
       CB_meta = CB_meta |> dplyr::filter(cb_type == "well_norm")
+
+      if (nrow(CB_meta) == 0) {
+        message("There are no CBs in CB_meta that can be used for normalization.")
+        stop("CB_meta needs a control barcode ladder marked with 'well_norm' in the 'cb_type' column.")
+      }
     }
   }
 
-  # Identify valid profiles and valid control barcodes to determine intercept ----
-  # Valid CBs per plate
-  message("Calculating MADs for the control barcodes...")
-  cb_mad = get_cb_mad(X[!is.na(cb_name) & pert_type == negcon_type],
-                      id_cols = id_cols, cb_mad_cutoff = cb_mad_cutoff)
+  # Create a CB flag column
+  # This will later be merged onto a df of all CBs.
+  small_CB_meta = CB_meta |>
+    dplyr::distinct(cb_ladder, cb_name) |>
+    dplyr::mutate(keep_cb = "Yes")
 
-  print("The following CBs are dropped due to high MAD.")
-  invalid_cbs = cb_mad |> dplyr::filter(keep_cb == FALSE, num_reps >= req_negcon_reps)
-  print(invalid_cbs)
+  # Flag control barcodes that are:
+  # 1. NOT present in CB_meta for the screen
+  # 2. undetected in sequencing
+  cbs_annots = filtered_counts |>
+    dplyr::filter(!is.na(cb_name)) |>
+    dplyr::distinct(dplyr::across(tidyselect::all_of(c(id_cols, "pert_type", "cb_ladder", "cb_name", "n")))) |>
+    dplyr::left_join(small_CB_meta, by = c("cb_ladder", "cb_name")) |>
+    dplyr::mutate(keep_cb = dplyr::case_when(
+      is.na(keep_cb) ~ "Not in CB meta", # Flag CBs not in CB_meta
+      n == 0 ~ "Undetected CB", # Flag undetected CBs
+      .default = "Yes")
+    )
+  # Report if any CBs were flagged
+  total_cbs = nrow(cbs_annots)
+  not_in_meta_cbs = nrow(cbs_annots[keep_cb == "Not in CB meta"])
+  undetected_cbs = nrow(cbs_annots[keep_cb == "Undetected CB"])
+  message(sprintf("%d (%.2f%%) control barcodes were not found in the CB meta.",
+                  not_in_meta_cbs, not_in_meta_cbs / total_cbs))
+  message(sprintf("%d (%.2f%%) control barcodes were not detected in sequencing.",
+                  undetected_cbs, undetected_cbs / total_cbs))
 
-  print("The MAD filter did not apply to these CBs due to low replicate counts.")
-  print(cb_mad |> dplyr::filter(keep_cb == FALSE, num_reps < req_negcon_reps))
+  # Flag control barcodes that:
+  # 3. have high MAD (variability) in the negative controls of a PCR plate.
+  # If there are negative controls, then calculate MADs of the CBs across the negative controls
+  # and flag CBs with high MADs on PCR plates with enough negative controls.
+  if (negcon_type %in% unique(cbs_annots$pert_type)) {
+    # Calculate negcon MADs of CBs for normalization
+    cb_mad = get_cb_mad(cbs_annots[pert_type == negcon_type & keep_cb != "Not in CB meta"],
+                        id_cols = id_cols,
+                        cb_mad_cutoff = cb_mad_cutoff)
+    high_mad_cbs = cb_mad |>
+      dplyr::filter(keep_cb == FALSE, num_reps >= req_negcon_reps) |>
+      dplyr::rename(cb_mad_flag = keep_cb)
+    # TO DO: consider different control conditions - different days or different conditions.
 
-  # Drop wells with invalid pert_type, wells without control barcodes, cell line entries or other CBs,
-  # cbs with zero reads, cbs with high MADs, and profiles with fewer than 4 CBs.
-  valid_profiles= X %>% dplyr::filter(!pert_type %in% c(NA, "empty", "", "CB_only"), n != 0,
-                                      cb_ladder %in% unique(CB_meta$cb_ladder),
-                                      cb_name %in% unique(CB_meta$cb_name)) %>%
-    dplyr::group_by(dplyr::pick(tidyselect::all_of(id_cols))) %>%
-    dplyr::filter(dplyr::n() > 4) %>% dplyr::ungroup()
-
-  # Drop high MAD CBs
-  if (nrow(invalid_cbs) > 0) {
-    valid_profiles = valid_profiles |>
-      dplyr::anti_join(invalid_cbs, by = c("pcr_plate", "cb_ladder", "cb_name"))
-  }
-
-  # Validation: Check which wells/profiles were dropped ----
-  distinct_all_profiles= X %>% dplyr::distinct(dplyr::pick(tidyselect::all_of(id_cols)))
-  distinct_valid_profiles= valid_profiles %>% dplyr::distinct(dplyr::pick(tidyselect::all_of(id_cols)))
-  if(nrow(distinct_all_profiles) != nrow(distinct_valid_profiles)) {
-    # Print error if all profiles were dropped
-    if(nrow(valid_profiles) == 0) {
-      stop('No valid profiles detected for normalization!')
+    # Flag barcodes with high MAD if there are any
+    if (nrow(high_mad_cbs) > 0) {
+      cbs_annots = cbs_annots |>
+        dplyr::left_join(high_mad_cbs, by = c("pcr_plate", "cb_name"), suffix = c("", ".y")) |>
+        dplyr::select(!tidyselect::ends_with(".y")) |>
+        dplyr::mutate(keep_cb = dplyr::case_when(cb_mad_flag == FALSE & keep_cb == "Yes" ~ "High negcon MAD",
+                                                 .default = keep_cb))
     }
-
-    # Print out the profiles that were dropped
-    profiles_dropped_at_norm= distinct_all_profiles %>% dplyr::anti_join(distinct_valid_profiles, by= id_cols)
-    print(paste('Number of profiles dropped at normalization:', nrow(profiles_dropped_at_norm),
-                'out of', nrow(distinct_valid_profiles)))
-    print('Reason for dropping:\n1. trt type is empty, NA, or CB_only. 2. Detected <=4 CBs.')
-    print("Dropped profiles are ...")
-    print(profiles_dropped_at_norm)
+    # Report the number of CBs flagged and the number of CBs that were not filtered due to low replicate count
+    message(sprintf("%d (%.2f%%) control barcodes have MADs greater than %.2f.",
+                    nrow(high_mad_cbs), nrow(high_mad_cbs) / total_cbs, cb_mad_cutoff))
+    message(sprintf("The MAD filter did not apply to %d CBs where the number of replicates is below %d.",
+                    nrow(cb_mad |> dplyr::filter(keep_cb == FALSE, num_reps < req_negcon_reps)),
+                    req_negcon_reps))
+  } else {
+    message("No negative controls detected. Skipping the CB MAD filter.")
   }
 
-  # Calculate fit intercept for valid profiles using median intercept ----
-  fit_intercepts= valid_profiles %>% dplyr::group_by(pick(all_of(c(id_cols, 'cb_log2_dose')))) %>%
-    dplyr::summarize(dose_intercept= mean(cb_log2_dose) - mean(log2_n)) %>%
-    dplyr::group_by(pick(all_of(id_cols))) %>%
-    dplyr::summarize(cb_intercept= median(dose_intercept)) %>% dplyr::ungroup()
+  # Flag control barcodes that:
+  # 4. Flag PCR wells without enough unflagged control barcodes for normalization.
+  # In a PCR well if there are 4 or fewer CBs tagged with "Yes" in keep_cb,
+  # those "Yes" notes are converted into "Not enough valid CBs".
+  cbs_annots = cbs_annots |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(id_cols))) |>
+    dplyr::mutate(keep_cb = ifelse(sum(keep_cb == "Yes") <= 4 & keep_cb == "Yes",
+                                   "Not enough valid CBs", keep_cb)) |>
+    dplyr::ungroup()
 
-  # Normalize entries ----
-  normalized= X %>% dplyr::inner_join(fit_intercepts, by=id_cols) %>%
-    dplyr::mutate(log2_normalized_n= log2_n + cb_intercept) %>%
-    dplyr::left_join(cb_mad, by = c("pcr_plate", "cb_ladder", "cb_name")) %>%
-    dplyr::mutate(cb_ladder = ifelse(keep_cb == FALSE, paste0(cb_ladder, " - dropped"), cb_ladder)) |>
+  # Print out the number of PRC wells that can be normalized
+  num_pcr_wells = filtered_counts |> dplyr::distinct(dplyr::across(tidyselect::all_of(id_cols))) |> nrow()
+  num_passing_wells = cbs_annots |>
+    dplyr::filter(keep_cb == "Yes") |>
+    dplyr::distinct(dplyr::across(tidyselect::all_of(id_cols))) |>
+    nrow()
+  message(sprintf("Out of %d PCR wells, %d wells contain enough CBs for normalization.",
+                  num_pcr_wells, num_passing_wells))
+
+  # Throw an error if there are no valid PCR wells to normalize
+  if (num_passing_wells == 0) {
+    flag_summary = cbs_annots |>
+      dplyr::group_by(keep_cb) |>
+      dplyr::summarise(num_cbs = dplyr::n(), .groups = "drop")
+    print(flag_summary)
+    stop("No valid PCR wells identified for normalization.")
+  }
+
+  return(cbs_annots)
+}
+
+#' normalize
+#'
+#' Normalize read counts using valid control barcodes.
+#'
+#' @param X Data table of filtered read counts.
+#' @param valid_cbs Data frame of the control barcodes with a column "keep_cb".
+#' @param id_cols Vector of columns that uniquely identify each PCR well.
+#' @param pseudocount Integer to be added to all counts so that logs can be taken.
+#' @return Data frame of normalized counts.
+#' @import tidyverse
+normalize = function(X, cb_annots, id_cols, pseudocount = 0) {
+  # Validation: Check that id_cols are present in the dataframe
+  if (!validate_columns_exist(id_cols, X)) {
+    stop("One or more id_cols (printed above) is NOT present in filtered counts.")
+  }
+
+  # Drop cell lines that appear in more than one pool.
+  # These lines were identified in the filtered counts module and have a specific string
+  # in the pool_id column.
+  if ("pool_id" %in% colnames(X)) {
+    X = X |> dplyr::filter(!grepl("_+_", pool_id, fixed = TRUE))
+  }
+
+  # Add pseudocount and join control barcode annotations
+  X = X |>
+    dplyr::mutate(log2_n = log2(n + pseudocount)) |>
+    dplyr::left_join(cb_annots, by = c(id_cols, "cb_name"), suffix = c("", ".y")) |>
+    dplyr::select(!tidyselect::ends_with(".y")) # Drop any duplicate columns from cb_annots
+
+  # Calculate fit intercept for valid profiles using median intercept
+  fit_intercepts = X |>
+    dplyr::filter(keep_cb == "Yes") |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(c(id_cols, "cb_log2_dose")))) |>
+    dplyr::summarize(dose_intercept = mean(cb_log2_dose) - mean(log2_n), .groups = "drop") |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(id_cols))) |>
+    dplyr::summarize(cb_intercept = median(dose_intercept), .groups = "drop")
+
+  # Normalize filtered read counts and note flagged CBs
+  normalized = dplyr::inner_join(X, fit_intercepts, by = id_cols) |>
+    dplyr::mutate(log2_normalized_n = log2_n + cb_intercept,
+                  cb_ladder = dplyr::case_when(is.na(keep_cb) ~ cb_ladder,
+                                               keep_cb == "Yes" ~ cb_ladder,
+                                               keep_cb != "Yes" ~ paste(cb_ladder, keep_cb, sep = " - "))) |>
     dplyr::select(-log2_n, -keep_cb)
 
   return(normalized)
