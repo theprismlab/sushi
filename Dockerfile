@@ -23,7 +23,7 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     libcurl4-openssl-dev \
     libbz2-dev \
     liblzma-dev \
-    # Python build dependencies (Fixes the pyfarmhash error)
+    # Python build dependencies
     python3-dev \
     build-essential \
     # General utilities
@@ -36,23 +36,24 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Setup Python virtual environment and install Python packages
-RUN python3 -m venv /opt/venv \
-    && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
-    && /opt/venv/bin/pip install google-cloud-bigquery pyfarmhash pandas requests boto3 polars pyyaml
-
-# 3. Install local Python tools
-COPY scripts/utils/prism_tools ./prism_tools
-RUN /opt/venv/bin/pip install -e prism_tools
-
-# 4. Make the virtual environment's python/pip the default
+# 2. Setup Python virtual environment
+RUN python3 -m venv /opt/venv
+# Make the virtual environment's python/pip the default
 ENV PATH="/opt/venv/bin:${PATH}"
+# Upgrade pip inside the venv
+RUN pip install --upgrade pip setuptools wheel
 
-# 5. Copy R scripts into the container
-COPY scripts/drc /scripts/drc
-COPY scripts/biomarker /scripts/biomarker
-COPY scripts/utils /scripts/utils
+# 3. Install the local sushi-tools Python package and all its dependencies
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY sushilib ./sushilib  # Copy the new, clean source directory
+RUN pip install -e .      # Install the package and all dependencies from pyproject.toml
+
+# 4. Copy R scripts and other project scripts into the container
+# This copies all your script folders (drc, biomarker, etc.)
+COPY scripts /scripts
 COPY docker/install_packages.R /src/install_packages.R
 
-# 6. Install R dependencies
+# 5. Install R dependencies
 RUN Rscript /src/install_packages.R
+

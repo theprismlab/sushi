@@ -64,6 +64,7 @@ pipeline {
             sectionHeaderStyle: sectionHeaderStyleBlue
         )
         string(name: 'CONTROL_BARCODE_META', defaultValue: 'h-a', description: 'Metadata for control barcodes. If the CBs exist in cellDB, this can simply be the lowercase cb_ladder name (ie, h-a). Otherwise, this must be a csv file located in the build directory.')
+        choice(name: 'NORM_METHOD', choices: ['normalize_then_shift', 'normalize_with_pseudocount'], description: 'Select the normalization method to use.')
         string(name: 'CTL_TYPES', defaultValue: 'ctl_vehicle', description: 'Value in the pert_type column of the sample meta that identifies the negative contols.')
         string(name: 'POSCON_TYPE', defaultValue: 'trt_poscon', description: 'Value in the pert_type column of the sample meta that identifies the positive controls.')
         string(name: 'CONTROL_COLS', defaultValue: 'cell_set,day,pcr_plate,replicate_plate,pert_vehicle', description: 'List of columns found in the sample meta that describe individual negative control conditions.')
@@ -80,7 +81,7 @@ pipeline {
         booleanParam(name: 'REMOVE_DATA', defaultValue: false, description: 'Uses a data_to_remove.csv files to remove data. Runs as part of filter counts.')
         booleanParam(name: 'CBNORMALIZE', defaultValue: true, description: 'Normalizes counts. Requires vehicle controls and a control barcode ladder.')
         booleanParam(name: 'COMPUTE_LFC', defaultValue: true, description: 'Compute the fold changes from vehicle controls of each cell line for each treatment condition.')
-        booleanParam(name: 'GROWTH_CORRECTION', defaultValue: true, description: 'Correct fold change values using cell line growth annotations.')
+        booleanParam(name: 'BIAS_CORRECTION', defaultValue: true, description: 'Correct fold change values using cell line growth annotations.')
         booleanParam(name: 'COLLAPSE', defaultValue: true, description: 'Median collapses biological replicates.')
 
         separator(
@@ -102,8 +103,7 @@ pipeline {
           sectionHeaderStyle: sectionHeaderStyleBlue
         )
         booleanParam(name: 'CONVERT_SUSHI', defaultValue: false, description: 'Convert output column headers to format for MTS pipeline and upload to s3.')
-        string(name: 'DAYS', defaultValue: '5', description: 'Provide any days/timepoints (separated by commas) that should be maintained. If left blank, all days will be maintained.')
-        
+
         separator(
           name: "analytics_modules",
           sectionHeader: "Analytics Modules",
@@ -156,7 +156,6 @@ pipeline {
         string(name: 'SAMPLE_META', defaultValue: 'sample_meta.csv', description: 'File name in BUILD_DIR of the sample meta.')
         string(name: 'CELL_SET_AND_POOL_META', defaultValue: 'cell_set_and_pool_meta.csv', description: 'Cell set and pool information for this run.')
         string(name: 'CELL_LINE_META', defaultValue: 'cell_line_meta.csv', description: 'File in BUILD_DIR containing cell line metadata')
-        string(name: 'GROWTH_ANNOTATIONS', defaultValue: 'growth_annotations.csv', description: 'File in BUILD_DIR containing growth annotations.')
        
         // Additional parameters ordered by when they first appear
         // Collate FASTQ reads
@@ -169,12 +168,13 @@ pipeline {
         string(name: 'PSEUDOCOUNT', defaultValue: '0', description: 'Pseudocount value added to all reads before log transformations. This defaults to \"0\" and is used in CBNORMALIZE.')
         string(name: 'READ_DETECTION_LIMIT', defaultValue: '10', description: 'Smallest read count value used to compute pseudovalues.')
         // Compute l2fc 
-        string(name: 'CELL_LINE_COLS', defaultValue: 'pool_id,depmap_id,lua,cell_set,growth_pattern', description: 'List of columns across the metadata files that are used to identify a unique cell line. This defaults to \"pool_id,depmap_id,lua\", but can also include \"cell_set\" or descriptive columns like \"project_code\" that you would like to pass through the pipeline. This parameter is first used in COMPUTE_LFC.')
+        string(name: 'CELL_LINE_COLS', defaultValue: 'pool_id,depmap_id,lua,cell_set,growth_condition', description: 'List of columns across the metadata files that are used to identify a unique cell line. This defaults to \"pool_id,depmap_id,lua\", but can also include \"cell_set\" or descriptive columns like \"project_code\" that you would like to pass through the pipeline. This parameter is first used in COMPUTE_LFC.')
         string(name: 'COUNT_COL_NAME', defaultValue: 'log2_normalized_n', description: 'Name of the numerical column that should be used to compute log2 fold change values. This defaults to \"normalized_n\" and is used in COMPUTE_LFC.')
         string(name: 'COUNT_THRESHOLD', defaultValue: '40', description: 'Threshold for filtering the negative controls. In the negative control conditions, cell lines whose median counts are below this threshold are not confidently detected and thus are dropped. This defaults to \"40\" and is used in COMPUTE_LFC.')
+        string(name: 'BIO_REP_COL', defaultValue: 'bio_rep', description: 'Column identifying the biological replicates. Defaults to \"bio_rep\".')
         // Collapse replicates
         string(name: 'L2FC_COLUMN', defaultValue: 'l2fc', description: 'Name of the column containing the log2 fold change values used in DRC. This defaults to \"l2fc\".')
-        string(name: 'GROWTH_PATTERN_COL', defaultValue: 'growth_pattern', description: 'Name of the column containing the cell line growth annotations. This defaults to \"growth_pattern\".')
+        string(name: 'GROWTH_PATTERN_COL', defaultValue: 'growth_condition', description: 'Name of the column containing the cell line growth annotations. This defaults to \"growth_condition\".')
         string(name: 'COLLAPSED_L2FC_COLUMN', defaultValue: 'median_l2fc', description: 'Name of the column containing the collapsed log2 fold change values used in biomarker. This defaults to \"collapsed_l2fc\".')
         // DRC
         string(name: 'VIABILITY_CAP', defaultValue: '1.5', description: 'Cap for viability values used when computing LFC. This defaults to \"1.5\".')
@@ -197,7 +197,7 @@ pipeline {
         string(name: 'MERGE_PATTERNS', defaultValue: 'log2_auc_multivariate_biomarkers*,log2_auc_univariate_biomarkers*,median_l2fc_multivariate_biomarkers*,median_l2fc_univariate_biomarkers*,DRC_TABLE*', description: 'Patterns to search for when merging files by project. May be changed based on modules run.')
 
         // Biomarker
-        string(name: 'BIOMARKER_FILE', defaultValue: '/data/biomarker/current/depmap_public_24q4.h5', description: 'Biomarker reference file.')
+        string(name: 'BIOMARKER_FILE', defaultValue: '/cmap/obelix/pod/biomarker/depmap_public_24q4.h5', description: 'Biomarker reference file.')
         string(name: 'DR_COLUMN', defaultValue: 'log2_auc', description: 'Name of the column containing AUC values used in biomarker analysis.')
         string(name: 'DR_PATH', defaultValue: 'DRC_TABLE.csv', description: 'File in drc/BUILD_DIR containing dose response curve data. This file is created by DRC.')
 
@@ -259,13 +259,12 @@ pipeline {
                 script {
                     def paramList = [
                         'SEQ_TYPE', 'API_URL', 'BUILD_DIR', 'INDEX_1', 'INDEX_2', 'BARCODE_SUFFIX', 'CREATE_CELLDB_METADATA',
-                        'BUILD_NAME', 'CONVERT_SUSHI', 'REMOVE_DATA', 'FILTER_SKIPPED_WELLS', 'DAYS',
+                        'BUILD_NAME', 'CONVERT_SUSHI', 'REMOVE_DATA', 'FILTER_SKIPPED_WELLS',
                         'COUNTS', 'SCREEN', 'GENERATE_QC_TABLES', 'POSCON_TYPE', 'DRC', 'L2FC_COLUMN','COLLAPSED_L2FC_COLUMN',
                         'SKIPPED_WELLS','FILTER_QC_FLAGS', 'PERT_PLATES', 'SCREEN_TYPE',
 
                         // sushi input files
                         'RAW_COUNTS_UNCOLLAPSED', 'SAMPLE_META', 'CELL_SET_AND_POOL_META', 'CELL_LINE_META', 'CONTROL_BARCODE_META',
-                        'GROWTH_ANNOTATIONS',
 
                         // sushi output files
                         'PRISM_BARCODE_COUNTS', 'UNKNOWN_BARCODE_COUNTS', 'ANNOTATED_COUNTS', 'FILTERED_COUNTS', 'NORMALIZED_COUNTS',
@@ -275,11 +274,11 @@ pipeline {
                         'SEQUENCING_INDEX_COLS', 'ID_COLS', 'BARCODE_COL', 'LOW_ABUNDANCE_THRESHOLD', 'CHUNK_SIZE', 'REVERSE_INDEX2',
 
                         // normalize parameters
-                        'PSEUDOCOUNT', 'READ_DETECTION_LIMIT',
+                        'NORM_METHOD', 'PSEUDOCOUNT', 'READ_DETECTION_LIMIT',
 
-                        // compute_l2fc paramters
+                        // compute_l2fc parameters
                         'SIG_COLS', 'CONTROL_COLS', 'CELL_LINE_COLS', 'COUNT_COL_NAME', 'CTL_TYPES', 'COUNT_THRESHOLD', 'VIABILITY_CAP',
-                        'GROWTH_PATTERN_COL',
+                        'GROWTH_PATTERN_COL', 'BIO_REP_COL',
 
                         // biomarker parameters
                         'UNIVARIATE_BIOMARKER', 'MULTIVARIATE_BIOMARKER', 'BIOMARKER_FILE', 'DR_COLUMN', 'LFC_BIOMARKER', 'AUC_BIOMARKER',
@@ -416,8 +415,8 @@ pipeline {
                         if (params.COMPUTE_LFC) {
                             scriptsToRun.add('compute_l2fc/compute_l2fc.sh')
                         }
-                        if (params.GROWTH_CORRECTION) {
-                            scriptsToRun.add('growth_correction/growth_correction.sh')
+                        if (params.BIAS_CORRECTION) {
+                            scriptsToRun.add('bias_correction/bias_correction.sh')
                         }
                         if (params.COLLAPSE) {
                             scriptsToRun.add('collapse_replicates/collapse_replicates.sh')

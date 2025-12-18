@@ -20,6 +20,8 @@ parser$add_argument("--sig_cols", default= "cell_set,pert_name,pert_dose,pert_do
                     help= "columns used to identify a unique condition")
 parser$add_argument("--cell_line_cols", default= "pool_id,depmap_id,lua",
                     help= "Columns that can describe a cell line")
+parser$add_argument("--collapsed_l2fc_file", default = "collapsed_l2fc.csv",
+                    help = "Name of the file to be stored in the output directory.")
 parser$add_argument("-o", "--out", default= getwd(), help= "Output path. Default is working directory")
 
 
@@ -30,18 +32,17 @@ args <- parser$parse_args()
 delete_existing_files(args$out, "collapsed_l2fc")
 
 # Collapse biological replicates ----
-lfc_values= data.table::fread(args$lfc, header=T, sep=',', data.table=F)
+lfc_values= read_data_table(args$lfc)
 sig_cols= unlist(strsplit(args$sig_cols, ","))
 cell_line_cols= unlist(strsplit(args$cell_line_cols, ","))
 
 print("Collapsing biological replicates ...")
 collapsed_l2fc= collapse_bio_reps(l2fc= lfc_values, sig_cols= sig_cols, cell_line_cols= cell_line_cols)
 
-
 # Write out file ----
-collapsed_l2fc_outpath= paste(args$out, 'collapsed_l2fc.csv', sep='/')
+collapsed_l2fc_outpath = file.path(args$out, args$collapsed_l2fc_file)
 print(paste0('Writing out collapsed l2fc file to ', collapsed_l2fc_outpath))
-write.csv(x= collapsed_l2fc, file= collapsed_l2fc_outpath, row.names= FALSE, quote= FALSE)
+write_out_table(collapsed_l2fc, collapsed_l2fc_outpath)
 
 # Ensure that collapsed file was successfully generated ----
 check_file_exists(collapsed_l2fc_outpath)

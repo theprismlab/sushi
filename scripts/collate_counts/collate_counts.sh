@@ -115,6 +115,8 @@ args=(
 --barcode_col "$BARCODE_COL"
 --chunk_size "$CHUNK_SIZE"
 --low_abundance_threshold "$LOW_ABUNDANCE_THRESHOLD"
+--prism_barcode_counts_file "${PRISM_BARCODE_COUNTS}"
+--unknown_barcode_counts_file "${UNKNOWN_BARCODE_COUNTS}"
 --out "$BUILD_DIR"
 )
 

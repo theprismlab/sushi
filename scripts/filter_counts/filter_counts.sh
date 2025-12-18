@@ -79,6 +79,8 @@ args=(
 --CB_meta "$BUILD_DIR/CB_meta.csv"
 --cell_set_and_pool_meta "$CELL_SET_AND_POOL_META"
 --id_cols "$ID_COLS"
+--annot_file "${ANNOTATED_COUNTS}"
+--filt_file "${FILTERED_COUNTS}"
 --out "$BUILD_DIR"
 --rm_data "$REMOVE_DATA"
 --screen "$SCREEN"

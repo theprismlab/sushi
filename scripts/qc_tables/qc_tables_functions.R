@@ -57,7 +57,6 @@ compute_expected_lines <- function(cell_set_meta, cell_line_cols) {
     dplyr::summarise(n_expected_lines = n(), .groups = "drop")
 }
 
-
 #' Compute read stats
 #'
 #' This function calculates summary statistics related to reads and cell line recovery for annotated counts data,
@@ -67,75 +66,60 @@ compute_expected_lines <- function(cell_set_meta, cell_line_cols) {
 #' @param cell_set_meta A data frame containing metadata about cell sets and their expected cell lines.
 #' @param group_cols A character vector specifying the grouping columns (default: `c("pcr_plate", "pcr_well")`).
 #' @param metric A string indicating the column name of the metric to use for calculations (default: `"n"`).
-#' @param cell_line_cols A character vector specifying the column names that define a unique cell line (default: `c("depmap_id", "lua", "pool_id")`).
-#' @param count_threshold An integer specifying the minimum count threshold for a cell line to be considered recovered (default: `40`).
+#' @param cell_line_cols A character vector specifying the column names that define a unique cell line
+#'                       (default: `c("depmap_id", "lua", "pool_id")`).
+#' @param count_threshold An integer specifying the minimum count threshold for a cell line to be considered recovered
+#'                        (default: `40`).
 #'
-#' @return A data frame summarizing read statistics for each group, including total reads, expected reads, control barcode reads,
-#' recovered cell lines, and their fractions.
+#' @return A data frame summarizing read statistics for each group, including total reads, expected reads,
+#'         control barcode reads, recovered cell lines, and their fractions.
 #'
 #' @import dplyr
-compute_read_stats <- function(annotated_counts, cell_set_meta, unknown_counts, cb_metrics, group_cols = c("pcr_plate", "pcr_well", "pert_type", "pert_plate"),
-                               metric = "n", cell_line_cols = c("depmap_id", "pool_id", "lua"), count_threshold = 40,
-                               expected_reads_threshold = 0.8, cb_threshold = 40, cb_spearman_threshold = 0.8, cb_mae_threshold = 1) {
+compute_read_stats <- function(unknown_counts, annotated_counts, cell_set_meta,
+                               group_cols = c("pcr_plate", "pcr_well", "pert_type", "pert_plate", "cell_set"),
+                               cell_line_cols = c("depmap_id", "pool_id", "lua"),
+                               metric = "n", count_threshold = 40) {
   # Compute expected lines from cell_set_meta
-  expected_lines <- compute_expected_lines(cell_set_meta, cell_line_cols)
+  num_expected_lines = compute_expected_lines(cell_set_meta, cell_line_cols)
 
-  # Group unknown_counts by group_cols
-  unknown_counts <- unknown_counts %>%
-    dplyr::left_join(unique(annotated_counts %>% select(pcr_plate, pcr_well, pert_type, pert_plate)),
-      by = c("pcr_plate", "pcr_well")
-    ) %>%
-    dplyr::group_by(across(all_of(group_cols))) %>%
-    dplyr::summarise(
-      n = sum(.data[[metric]], na.rm = TRUE),
-      expected_read = FALSE
-    )
+  # Sum up unknown reads per well and add group_cols as annotations from annotated_counts
+  unknown_counts = unknown_counts |>
+    dplyr::group_by(pcr_plate, pcr_well) |>
+    dplyr::summarise(n = sum(.data[[metric]], na.rm = TRUE),
+                     expected_read = FALSE, .groups = "drop") |>
+    dplyr::left_join(annotated_counts |> dplyr::distinct(across(all_of(group_cols))),
+                     by = c("pcr_plate", "pcr_well"))
 
-  plate_well <- annotated_counts %>%
-    dplyr::left_join(expected_lines, by = "cell_set") %>%
-    # Append unknown_counts, filling NA for any column not present in unknown_counts
-    dplyr::bind_rows(unknown_counts) %>%
-    dplyr::group_by(across(all_of(group_cols))) %>%
+  plate_well = annotated_counts |>
+    dplyr::bind_rows(unknown_counts) |>
+    dplyr::left_join(num_expected_lines, by = "cell_set") |>
+    dplyr::group_by(across(all_of(group_cols))) |>
     dplyr::summarise(
       # Total reads
       n_total_reads = sum(.data[[metric]], na.rm = TRUE),
       # Reads mapping to cell lines
       n_expected_reads = sum(.data[[metric]][expected_read], na.rm = TRUE),
-      # Reads mapping to control barcodes
-      n_cb_reads = sum(.data[[metric]][cb_name != ""], na.rm = TRUE),
-      # Median reads for control barcodes
-      median_cb_reads = median(.data[[metric]][cb_name != ""], na.rm = TRUE),
       # Fraction of reads mapping to cell lines
       fraction_expected_reads = n_expected_reads / n_total_reads,
+      # Reads mapping to control barcodes
+      n_cb_reads = sum(.data[[metric]][!is.na(cb_name)], na.rm = TRUE),
+      # Median reads for control barcodes
+      median_cb_reads = median(.data[[metric]][!is.na(cb_name)], na.rm = TRUE),
+      # Fraction of reads mapping to control barcodes
+      fraction_cb_reads = n_cb_reads / n_total_reads,
       # Number of cell lines with coverage above 40 reads
-      n_lines_recovered = sum(.data[[metric]] >= count_threshold & (is.na(cb_name) | cb_name == "") & expected_read == TRUE, na.rm = TRUE),
+      n_lines_recovered = sum(.data[[metric]] >= count_threshold & is.na(cb_name) & expected_read == TRUE,
+                              na.rm = TRUE),
       # Number of expected lines based on metadata
       n_expected_lines = max(n_expected_lines, na.rm = TRUE), # Bring forward from join
       # Fraction of cell lines with coverage above count threshold
-      fraction_cl_recovered = n_lines_recovered / max(n_expected_lines, na.rm = TRUE),
+      fraction_cl_recovered = n_lines_recovered / n_expected_lines,
       # Ratio of control barcode reads to cell line reads
       cb_cl_ratio_well = n_cb_reads / n_expected_reads,
-      # Fraction of reads mapping to control barcodes
-      fraction_cb_reads = n_cb_reads / n_total_reads
-    ) %>%
-    dplyr::ungroup()
+      .groups = "drop"
+    )
 
-  plate_pert_type <- plate_well %>%
-    dplyr::left_join(cb_metrics %>% select(pcr_plate, pcr_well, cb_mae, cb_spearman), by = c("pcr_plate", "pcr_well")) %>%
-    dplyr::filter(median_cb_reads > cb_threshold) %>%
-    dplyr::filter(fraction_expected_reads > expected_reads_threshold) %>%
-    dplyr::filter(cb_spearman > cb_spearman_threshold & cb_mae < cb_mae_threshold) %>%
-    dplyr::group_by(pcr_plate, pert_type) %>%
-    dplyr::summarise(
-      cb_cl_ratio_plate = median(cb_cl_ratio_well, na.rm = TRUE),
-    ) %>%
-    dplyr::ungroup()
-
-  # Combine plate_well and plate_pert_type
-  result <- plate_well %>%
-    dplyr::left_join(plate_pert_type, by = c("pcr_plate", "pert_type"))
-
-  return(result)
+  return(plate_well)
 }
 
 #' Calculate CB metrics
@@ -143,53 +127,69 @@ compute_read_stats <- function(annotated_counts, cell_set_meta, unknown_counts, 
 #' This function calculates control metrics.
 #'
 #' @param normalized_counts A data frame containing normalized read counts and associated metrics.
-#' @param group_cols A character vector specifying the grouping columns (default: `c("pcr_plate", "pcr_well")`).
+#' @param group_cols A character vector specifying the grouping columns
+#'                   (default: `c("pcr_plate", "pcr_well", "pert_plate", "cb_intercept")`).
 #' @param cb_meta A data frame containing control barcode metadata.
-#'
+#' @param pseudocount An integer specifying the pseudocount to add to all read counts.
 #' @return A data frame containing unique combinations of `group_cols` and the calculated metrics.
 #'
 #' @import dplyr
 #'
-calculate_cb_metrics <- function(normalized_counts, 
-                                 cb_meta,
-                                 group_cols = c("pcr_plate", "pcr_well", "pert_plate"),
+calculate_cb_metrics <- function(normalized_counts, cb_meta,
+                                 group_cols = c("pcr_plate", "pcr_well", "pert_plate", "pert_type", "cell_set"),
                                  pseudocount = 20) {
-  # Filter cb_meta by dropping any control barcodes without "well_norm"
-  # indicated under "cb_type"
+  # Filter cb_meta by dropping any control barcodes not used for normalization
   if ("cb_type" %in% colnames(cb_meta)) {
     dropped_cbs = cb_meta |> dplyr::filter(cb_type != "well_norm")
-    
+
     if (nrow(dropped_cbs) > 0) {
-      print("The following CBs are excluded from normalization.")
+      message("The following CBs in CB_meta are not used for normalization.")
       print(dropped_cbs)
       cb_meta = cb_meta |> dplyr::filter(cb_type == "well_norm")
     }
   }
-  
-  valid_profiles <- normalized_counts %>%
-    dplyr::filter(
-      !pert_type %in% c(NA, "empty", "", "CB_only"), n != 0,
-      cb_ladder %in% unique(cb_meta$cb_ladder),
-      cb_name %in% unique(cb_meta$cb_name)
-    ) %>%
-    dplyr::group_by(across(all_of(group_cols))) %>%
-    dplyr::filter(dplyr::n() > 4) %>%
-    dplyr::ungroup()
-  fit_stats <- valid_profiles %>%
-    dplyr::group_by(across(all_of(group_cols))) %>%
-    dplyr::mutate(
-      log2_normalized_n = log2(n + pseudocount) + cb_intercept,
-      cb_mae = median(abs(cb_log2_dose - log2_normalized_n)),
-      mean_y = mean(cb_log2_dose),
-      residual2 = (cb_log2_dose - log2_normalized_n)^2,
-      squares2 = (cb_log2_dose - mean_y)^2,
-      cb_r2 = 1 - sum(residual2) / sum(squares2),
-      cb_spearman = cor(cb_log2_dose, log2(n + pseudocount), method = "spearman", use = "pairwise.complete.obs")
-    ) %>%
-    dplyr::ungroup() %>%
-    dplyr::distinct(across(any_of(c(group_cols, "cb_mae", "cb_r2", "cb_spearman", "cb_intercept", "log2_pseudovalue"))))
-    # To Do: Change how this distinct works!
+
+  # Pull out control barcodes used for normalization and calculate some stats
+  fit_stats = normalized_counts |>
+    dplyr::semi_join(cb_meta, by = c("cb_ladder", "cb_name")) |>
+    dplyr::group_by(across(all_of(group_cols)), across(any_of(c("cb_intercept", "log2_pseudovalue")))) |>
+    dplyr::mutate(log2_norm_n = log2(n + pseudocount) + cb_intercept,
+                  residual2 = (cb_log2_dose - log2_norm_n)^2,
+                  squares2 = (cb_log2_dose - mean(cb_log2_dose))^2) |>
+    dplyr::summarise(cb_mae = median(abs(cb_log2_dose - log2_norm_n)),
+                     cb_r2 = 1 - sum(residual2) / sum(squares2),
+                     cb_spearman = cor(cb_log2_dose, log2(n + pseudocount),
+                                       method = "spearman", use = "pairwise.complete.obs"),
+                     .groups = "drop")
+
   return(fit_stats)
+}
+
+#' Calculate CB CL ratio of a plate
+#'
+#' This function calculates the cb cl ratio of a PCR plate. This takes in a read_stats df,
+#' a cb_metrics df, and various thresholds.
+#'
+#' @param read_stats A dataframe with pcr_well level stats.
+#' @param cb_metrics A dataframe with control barcode stats.
+#' @param expected_reads_threshold A float
+#' @param cb_threshold A integer indicating low control barcode reads.
+#' @param cb_spearman_threshold A float indicating the Spearman correlation threshold.
+#' @param cb_mae_threshold A integer indicating MAE threshold.
+#' @return A data frame with CB CL ratio.
+compute_cb_cl_ratio_plate = function(read_stats, cb_metrics,
+                                     expected_reads_threshold = 0.8,
+                                     cb_threshold = 40,
+                                     cb_spearman_threshold = 0.8,
+                                     cb_mae_threshold = 1) {
+  cb_cl_ratio_plate = read_stats |>
+    dplyr::left_join(cb_metrics, by = c("pcr_plate", "pcr_well"), suffix = c("", ".y")) %>%
+    dplyr::filter(median_cb_reads > cb_threshold,
+                  fraction_expected_reads > expected_reads_threshold,
+                  cb_spearman > cb_spearman_threshold & cb_mae < cb_mae_threshold) %>%
+    dplyr::group_by(pcr_plate, pert_type) %>%
+    dplyr::summarise(cb_cl_ratio_plate = median(cb_cl_ratio_well, na.rm = TRUE), .groups = "drop")
+  return(cb_cl_ratio_plate)
 }
 
 # TABLE GENERATION FUNCTION ----------
@@ -204,34 +204,45 @@ calculate_cb_metrics <- function(normalized_counts,
 #' @param cell_set_meta A data frame containing metadata about cell sets and expected cell lines.
 #' @param id_cols_list A character vector specifying the columns to group by for QC metric computations.
 #' @param cell_line_cols A character vector specifying the column names that define a unique cell line.
-#' @param count_threshold An integer specifying the minimum count threshold for a cell line to be considered recovered (default: `40`).
+#' @param count_threshold An integer specifying the minimum count threshold for a cell line to be considered recovered
+#'                        (default: `40`).
 #'
-#' @return A data frame (`id_cols_table`) that combines QC metrics, including read statistics, skew, and control barcode metrics, grouped by the specified id_cols.
+#' @return A data frame (`id_cols_table`) that combines QC metrics, including read statistics, skew, and
+#'         control barcode metrics, grouped by the specified id_cols.
 #'
 #' @import dplyr
-generate_id_cols_table <- function(annotated_counts, normalized_counts, unknown_counts, cell_set_meta, cb_meta, id_cols_list, cell_line_cols,
+generate_id_cols_table <- function(annotated_counts, normalized_counts, unknown_counts,
+                                   cell_set_meta, cb_meta, id_cols, cell_line_cols,
                                    count_threshold = 40, pseudocount = 20, cb_threshold = 40) {
-  print(paste0("Computing id_cols QC metrics grouping by ", paste0(id_cols_list, collapse = ","), "....."))
+  # Columns to group read counts together to calculate stats - this should identify each PCR well
+  read_stats_group_cols = c(id_cols, "pert_plate", "pert_type", "cell_set")
+  message("Computing id_cols QC metric grouping over ", paste(read_stats_group_cols, collapse = ", "), "...")
 
-  read_stats_grouping_cols <- c(id_cols_list, "pert_type", "pert_plate")
+  message("Calculating control barcode metrics...")
+  cb_metrics = calculate_cb_metrics(normalized_counts, cb_meta,
+                                    group_cols = read_stats_group_cols,
+                                    pseudocount = pseudocount)
 
-  cb_metrics <- calculate_cb_metrics(normalized_counts, cb_meta, group_cols = c(id_cols_list, "pert_plate"), pseudocount = pseudocount)
+  message("Calculating read count statistics...")
+  read_stats = compute_read_stats(unknown_counts = unknown_counts,
+                                  annotated_counts = annotated_counts,
+                                  cell_set_meta = cell_set_meta,
+                                  group_cols = read_stats_group_cols,
+                                  cell_line_cols = cell_line_cols,
+                                  metric = "n",
+                                  count_threshold = count_threshold)
 
-  read_stats <- compute_read_stats(
-    annotated_counts = annotated_counts, unknown_counts = unknown_counts, cb_metrics = cb_metrics, group_cols = read_stats_grouping_cols,
-    cell_set_meta = cell_set_meta, metric = "n", cell_line_cols = cell_line_cols,
-    count_threshold = count_threshold, cb_threshold = 40
-  )
+  message("Calculating cb_cl_ratio for each PCR plate...")
+  cb_cl_ratio_plate = compute_cb_cl_ratio_plate(read_stats, cb_metrics, cb_threshold = 40)
 
-  skew <- compute_skew(annotated_counts, group_cols = c(id_cols_list, "pert_plate"), metric = "n")
+  message("Calculating read count skew...")
+  skew = compute_skew(annotated_counts, group_cols = read_stats_group_cols, metric = "n")
 
-
-  id_cols_table <- read_stats %>%
-    dplyr::left_join(skew, by = c(id_cols_list, "pert_plate")) %>%
-    dplyr::left_join(cb_metrics, by = c(id_cols_list, "pert_plate")) %>%
-    dplyr::left_join(normalized_counts %>% dplyr::select(all_of(c(id_cols_list, "cell_set"))) %>% dplyr::distinct(),
-      by = id_cols_list
-    ) %>% dplyr::distinct()
+  message("Assembling id_cols_table...")
+  id_cols_table = read_stats |>
+    dplyr::left_join(cb_cl_ratio_plate, by = c("pcr_plate", "pert_type")) |>
+    dplyr::left_join(skew, by = read_stats_group_cols) |>
+    dplyr::left_join(cb_metrics, by = read_stats_group_cols)
 
   return(id_cols_table)
 }
@@ -270,8 +281,8 @@ compute_error_rate <- function(df, metric = "log2_normalized_n", group_cols = c(
                                negcon = "ctl_vehicle", poscon = "trt_poscon", contains_poscon = TRUE) {
 
   if (contains_poscon) {
-    print(paste0("Computing error rate using ", negcon, " and ", poscon, "....."))
-    print(paste0("Grouping by ", paste0(group_cols, collapse = ","), "....."))
+    message("Computing error rate using ", negcon, " and ", poscon, ".....")
+    message("Grouping by ", paste(group_cols, collapse = ", "), ".....")
     result <- df %>%
       dplyr::filter(
         pert_type %in% c(negcon, poscon),
@@ -291,8 +302,7 @@ compute_error_rate <- function(df, metric = "log2_normalized_n", group_cols = c(
       ) %>%
       dplyr::ungroup()
     return(result)
-  }
-  else {
+  } else {
     print("No positive controls found. Unable to calculate error rate.")
   }
 }
@@ -315,10 +325,10 @@ compute_error_rate <- function(df, metric = "log2_normalized_n", group_cols = c(
 #' @import dplyr
 #' @importFrom tidyr pivot_wider
 #' @importFrom stats mad pnorm
-compute_ctl_medians_and_mad <- function(df, group_cols = c("depmap_id", "pcr_plate", "pert_plate"),
+compute_ctl_medians_and_mad <- function(df, group_cols = c("depmap_id", "lua", "pcr_plate", "pert_plate"),
                                         negcon = "ctl_vehicle", poscon = "trt_poscon", pseudocount = 20) {
-  print(paste0("Adding control median and MAD values for ", negcon, " and ", poscon, " if it exists....."))
-  print(paste0("Computing falses sensitivity probability for ", negcon, "....."))
+  message("Adding median and MAD values for ", negcon, " and ", poscon, " if it exists.....")
+  message("Computing falses sensitivity probability for ", negcon, ".....")
   # Group and compute medians/MADs
   result <- df %>%
     dplyr::filter(pert_type %in% c(negcon, poscon)) %>%
@@ -331,7 +341,7 @@ compute_ctl_medians_and_mad <- function(df, group_cols = c("depmap_id", "pcr_pla
       mad_raw = mad(log2(n + pseudocount))
     ) %>%
     dplyr::ungroup() %>%
-    pivot_wider(
+    tidyr::pivot_wider(
       names_from = pert_type,
       values_from = c(median_log_normalized, mad_log_normalized, median_raw, mad_raw, n_replicates),
       names_sep = "_"
@@ -364,21 +374,22 @@ compute_ctl_medians_and_mad <- function(df, group_cols = c("depmap_id", "pcr_pla
 #' - `lfc_raw`: Log fold change for raw data.
 #'
 #' @import dplyr
-compute_control_lfc <- function(df, negcon = "ctl_vehicle", poscon = "trt_poscon", grouping_cols = c("depmap_id", "pcr_plate", "pert_plate"), contains_poscon = TRUE) {
-  print(paste0("Computing log fold change for ", negcon, " and ", poscon, "....."))
+compute_control_lfc <- function(df, negcon = "ctl_vehicle", poscon = "trt_poscon",
+                                grouping_cols = c("depmap_id", "pcr_plate", "pert_plate"), 
+                                contains_poscon = TRUE) {
+  message("Computing log fold change for ", negcon, " and ", poscon, ".....")
   if (contains_poscon) {
-  result <- df %>%
-    dplyr::mutate(
-      lfc_trt_poscon = .data[[paste0("median_log_normalized_", poscon)]] -
-        .data[[paste0("median_log_normalized_", negcon)]],
-      lfc_raw_trt_poscon = .data[[paste0("median_raw_", poscon)]] -
-        .data[[paste0("median_raw_", negcon)]]
-    ) %>%
-    dplyr::select(all_of(grouping_cols), lfc_trt_poscon, lfc_raw_trt_poscon) %>%
-    dplyr::mutate(viability_trt_poscon = 2^lfc_trt_poscon)
-  return(result)
-  }
-  else {
+    result <- df %>%
+      dplyr::mutate(
+        lfc_trt_poscon = .data[[paste0("median_log_normalized_", poscon)]] -
+          .data[[paste0("median_log_normalized_", negcon)]],
+        lfc_raw_trt_poscon = .data[[paste0("median_raw_", poscon)]] -
+          .data[[paste0("median_raw_", negcon)]]
+      ) %>%
+      dplyr::select(all_of(grouping_cols), lfc_trt_poscon, lfc_raw_trt_poscon) %>%
+      dplyr::mutate(viability_trt_poscon = 2^lfc_trt_poscon)
+    return(result)
+  } else {
     print("No positive controls found. Unable to calculate log fold change.")
   }
 }
@@ -423,9 +434,9 @@ compute_cl_fractions <- function(df, metric = "n", grouping_cols = c("pcr_plate"
 compute_med_trt_bio_rep = function(norm_counts, cell_line_cols, sig_cols) {
   med_trt_bio_reps = norm_counts |>
     dplyr::filter(pert_type == "trt_cp") |>
-    dplyr::group_by(dplyr::pick(tidyselect::all_of(unique(c(cell_line_cols, sig_cols, "pert_plate"))))) |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(unique(c(cell_line_cols, sig_cols, "pert_plate"))))) |>
     dplyr::summarise(num_trt_bio_reps = dplyr::n(), .groups = "drop") |>
-    dplyr::group_by(dplyr::pick(tidyselect::all_of(unique(c(cell_line_cols, "pert_plate"))))) |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(unique(c(cell_line_cols, "pert_plate"))))) |>
     dplyr::summarise(med_num_trt_bio_reps = median(num_trt_bio_reps), .groups = "drop")
 
   return(med_trt_bio_reps)
@@ -446,11 +457,15 @@ compute_med_trt_bio_rep = function(norm_counts, cell_line_cols, sig_cols) {
 #' - Fractions of reads contributed by each cell line.
 #'
 #' @import dplyr
-generate_cell_plate_table <- function(normalized_counts, filtered_counts, cell_line_cols, sig_cols, pseudocount = 20, contains_poscon = TRUE, poscon = "trt_poscon", negcon = "ctl_vehicle",
-                                      nc_variability_threshold = 1, error_rate_threshold = 0.05, pc_viability_threshold = 0.25, nc_raw_count_threshold = 40) {
-  cell_line_list <- strsplit(cell_line_cols, ",")[[1]]
-  cell_line_plate_grouping <- c(cell_line_list, "pcr_plate", "pert_plate", "project_code", "day") # Define columns to group by
-  print(paste0("Computing cell + plate QC metrics grouping by ", paste0(cell_line_plate_grouping, collapse = ","), "....."))
+generate_cell_plate_table <- function(normalized_counts, filtered_counts, n_expected_controls,
+                                      cell_line_cols, sig_cols,
+                                      pseudocount = 20, contains_poscon = TRUE,
+                                      poscon = "trt_poscon", negcon = "ctl_vehicle",
+                                      nc_variability_threshold = 1, error_rate_threshold = 0.05,
+                                      pc_viability_threshold = 0.25, nc_raw_count_threshold = 40) {
+  # Columns to group control replicates cell lines on a plate
+  cell_line_plate_grouping =  unique(c(cell_line_cols, "pcr_plate", "pert_plate", "project_code", "day"))
+  message("Computing cell + plate QC metrics grouping by ", paste(cell_line_plate_grouping, collapse = ", "), ".....")
 
   # Compute control medians and MAD
   medians_and_mad <- compute_ctl_medians_and_mad(
@@ -514,21 +529,15 @@ generate_cell_plate_table <- function(normalized_counts, filtered_counts, cell_l
                       median_raw_ctl_vehicle > nc_raw_count_threshold &
                       mad_log_normalized_ctl_vehicle < nc_variability_threshold,
                     n_passing_med_num_trt_reps = ifelse(qc_pass, med_num_trt_bio_reps, 0))  %>%
-      dplyr::group_by(across(all_of(c(cell_line_list, "pert_plate")))) %>%
+      dplyr::group_by(across(all_of(c(cell_line_cols, "pert_plate")))) %>%
       dplyr::mutate(qc_pass_pert_plate = sum(n_passing_med_num_trt_reps) > 1) %>%
       dplyr::ungroup()
     # Add the n_expected_controls values
     plate_cell_table <- plate_cell_table %>%
-      dplyr::left_join(
-        n_expected_controls,
-        by = c("pcr_plate", "pert_plate")
-      ) %>%
-      dplyr::mutate(
-        fraction_expected_poscon = n_replicates_trt_poscon/n_expected_trt_poscon,
-        fraction_expected_negcon = n_replicates_ctl_vehicle/n_expected_ctl_vehicle
-      )
-  }
-  else {
+      dplyr::left_join(n_expected_controls, by = c("pcr_plate", "pert_plate")) %>%
+      dplyr::mutate(fraction_expected_poscon = n_replicates_trt_poscon/n_expected_trt_poscon,
+                    fraction_expected_negcon = n_replicates_ctl_vehicle/n_expected_ctl_vehicle)
+  } else {
     print(paste0("Merging ", paste0(cell_line_plate_grouping, collapse = ","), " QC tables together....."))
     print("medians_and_mad")
     print(colnames(medians_and_mad))
@@ -542,7 +551,7 @@ generate_cell_plate_table <- function(normalized_counts, filtered_counts, cell_l
       dplyr::mutate(qc_pass = median_raw_ctl_vehicle > nc_raw_count_threshold &
                       mad_log_normalized_ctl_vehicle < nc_variability_threshold,
                     n_passing_med_num_trt_reps = ifelse(qc_pass, med_num_trt_bio_reps, 0))  %>%
-      dplyr::group_by(across(all_of(c(cell_line_list, "pert_plate")))) %>%
+      dplyr::group_by(across(all_of(c(cell_line_cols, "pert_plate")))) %>%
       dplyr::mutate(qc_pass_pert_plate = sum(n_passing_med_num_trt_reps) > 1) %>%
       dplyr::ungroup()
     # Add the n_expected_controls values
@@ -702,26 +711,21 @@ generate_pool_well_qc_table <- function(normalized_counts, pool_well_delta_thres
   ### POOL_WELL_OUTLIERS
   ## Flag pool/well combinations based on the fraction of cell lines in a pool + well that are some distance from the pool + well median.
   ## This is in control wells only
-  pool_well_outliers <- normalized_counts %>%
+  # To do: this flags all wells not just the control wells
+  pool_well_outliers = normalized_counts |>
     # Consider only cell line barcodes
-    filter(is.na(cb_name)) %>%
+    dplyr::filter(is.na(cb_name)) |>
     # Get the median value of the pool in each well
-    group_by(pcr_plate, pcr_well, pert_type, pool_id) %>%
-    mutate(
-      pool_well_median = median(log2_normalized_n, na.rm = TRUE),
-      n_cell_lines = n_distinct(paste(lua, depmap_id, cell_set, sep = "_"))
-    ) %>%
-    mutate(
-      delta_from_pool_well_median = abs(log2_normalized_n - pool_well_median)
-    ) %>%
-    group_by(pcr_plate, pcr_well, pert_type, pool_id) %>%
-    reframe(
-      n_outliers = sum(delta_from_pool_well_median > pool_well_delta_threshold, na.rm = TRUE),
-      n_cell_lines = max(n_cell_lines)
-    ) %>%
-    ungroup() %>%
-    mutate(fraction_outliers = n_outliers / n_cell_lines,
-      qc_flag = if_else(fraction_outliers > pool_well_fraction_threshold, "pool_well_outliers", NA_character_))
+    dplyr::group_by(pcr_plate, pcr_well, pert_type, pool_id) |>
+    dplyr::mutate(pool_well_median = median(log2_normalized_n, na.rm = TRUE),
+                  n_cell_lines = dplyr::n_distinct(lua, depmap_id, cell_set),
+                  delta_from_pool_well_median = abs(log2_normalized_n - pool_well_median)) |>
+    dplyr::summarise(n_outliers = sum(delta_from_pool_well_median > pool_well_delta_threshold, na.rm = TRUE),
+                     n_cell_lines = max(n_cell_lines),
+                     .groups = "drop") |>
+    dplyr::mutate(fraction_outliers = n_outliers / n_cell_lines,
+                  qc_flag = if_else(fraction_outliers > pool_well_fraction_threshold,
+                                    "pool_well_outliers", NA_character_))
 }
 
 # Get the qc parameters from the qc_params json file
@@ -755,8 +759,7 @@ generate_pcr_plate_qc_flags_table <- function(plate_cell_table, fraction_expecte
       )
     ) %>%
     filter(!is.na(qc_flag))
-  }
-  else {
+  } else {
     table <- plate_cell_table %>%
       dplyr::select(fraction_expected_negcon, pcr_plate, pert_plate) %>%
       unique() %>%
@@ -876,7 +879,7 @@ compute_contamination_qc_tables <- function(prism_barcode_counts,
 
   # --- 3. Get a list of expected reads ---
   expected_cell_lines <- cell_set_and_pool_meta %>%
-    left_join(cell_line_meta, by = "depmap_id") %>%
+    left_join(cell_line_meta, by = c("depmap_id", "lua")) %>%
     pull(forward_read_barcode) %>%
     unique()
 

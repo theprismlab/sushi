@@ -26,7 +26,7 @@ args <- parser$parse_args()
 
 # Read in files as data.table objects ----
 print(paste0("Reading in ", args$l2fc, "....."))
-l2fc <- data.table::fread(args$l2fc, header = TRUE, sep = ",")
+l2fc <- read_data_table(args$l2fc)
 
 # Check if the output directory exists, if not create it
 if (!dir.exists(paste0(args$out, "/qc_tables"))) {
@@ -41,10 +41,7 @@ pool_delta_df <- compute_pool_delta_df(l2fc, 2)
 # Write pool_delta_df  table
 pool_delta_outpath <- paste0(args$out, "/qc_tables/pool_delta_table.csv")
 print(paste0("Writing out pool_delta_df to ", pool_delta_outpath))
-write.csv(
-  x = pool_delta_df, file = pool_delta_outpath, row.names = FALSE,
-  quote = FALSE
-)
+write_out_table(table = pool_delta_df, path = pool_delta_outpath)
 check_file_exists(pool_delta_outpath)
 
 paste0("QC module post-lfc completed.")

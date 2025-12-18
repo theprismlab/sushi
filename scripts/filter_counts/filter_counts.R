@@ -31,6 +31,8 @@ parser$add_argument('--id_cols', default= 'pcr_plate,pcr_well',
 parser$add_argument("--barcode_col", default= "forward_read_barcode",
                     help= "Name of the column in uncollapsed_raw_counts that contains the barcode sequences.")
 parser$add_argument("--rm_data", type="logical", help = "Remove bad experimental data")
+parser$add_argument("--annot_file", default = "annotated_counts.csv", help = "File for annotated_counts output.")
+parser$add_argument("--filt_file", default = "filtered_counts.csv", help = "File for filtered_counts output.")
 parser$add_argument("-o", "--out", default="", help = "Output path. Default is working directory")
 parser$add_argument("-s", "--screen", default="", help = "Screen")
 parser$add_argument("--filter_skipped_wells", type="logical", help = "Filter out skipped wells")
@@ -51,17 +53,17 @@ delete_existing_files(args$out, "filtered_counts")
 delete_existing_files(args$out, "annotated_counts")
 
 # Read in all input files ----
-prism_barcode_counts= data.table::fread(args$prism_barcode_counts, header= TRUE, sep= ',')
-sample_meta= data.table::fread(args$sample_meta, header= TRUE, sep= ',')
-cell_set_and_pool_meta= data.table::fread(args$cell_set_and_pool_meta, header= TRUE, sep= ',')
-cell_line_meta= data.table::fread(args$cell_line_meta, header= TRUE, sep= ',')
-CB_meta= data.table::fread(args$CB_meta, header= TRUE, sep= ',')
+prism_barcode_counts= read_data_table(args$prism_barcode_counts)
+sample_meta= read_data_table(args$sample_meta)
+cell_set_and_pool_meta= read_data_table(args$cell_set_and_pool_meta)
+cell_line_meta= read_data_table(args$cell_line_meta)
+CB_meta= read_data_table(args$CB_meta)
 screen= args$screen
 api_key= args$api_key
 
 # If the skipped wells file exists, read it in ----
 if(file.exists(args$skipped_wells)){
-  skipped_wells <- data.table::fread(args$skipped_wells, header= TRUE, sep= ',')
+  skipped_wells <- read_data_table(args$skipped_wells)
   skipped_wells <- skipped_wells %>%
     drop_na(pool_id) %>%
     dplyr::rename(
@@ -112,7 +114,7 @@ if(sum(cl_entries$n) == 0) {
 # If we plan to remove any data, first write a copy of the original unfiltered filtered_counts ----
 if(args$rm_data | args$filter_skipped_wells){
   filtered_counts_original <- filtered_counts
-  write.csv(filtered_counts_original, paste(args$out, 'filtered_counts_original.csv', sep='/'), row.names=F, quote=F)
+  write_out_table(filtered_counts_original, file.path(args$out, "filtered_counts_original.csv"))
 }
 
 # Remove data ----
@@ -120,7 +122,7 @@ print(paste("rm_data:", args$rm_data))
 # Remove data if needed
 if(args$rm_data){
   print('rm_data is TRUE, removing supplied data.')
-  data_to_remove <- read.csv(paste(args$out, 'data_to_remove.csv', sep='/'))
+  data_to_remove = read_data_table(file.path(args$out, "data_to_remove.csv"))
   print('Data to remove:')
   print(head(data_to_remove))
   filt_rm <- remove_data(filtered_counts, data_to_remove)
@@ -143,13 +145,13 @@ if(exists("skipped_wells") && args$filter_skipped_wells && nrow(skipped_wells) >
 }
 
 # Write out files ----
-annot_out_file= paste0(args$out, '/annotated_counts.csv')
+annot_out_file = file.path(args$out, args$annot_file)
 print(paste('Writing annotated counts to: ', annot_out_file))
-module_outputs$annotated_counts %>% write.csv(annot_out_file, row.names= FALSE)
+write_out_table(module_outputs$annotated_counts, annot_out_file)
 
-filtrc_out_file = paste(args$out, 'filtered_counts.csv', sep='/')
+filtrc_out_file = file.path(args$out, args$filt_file)
 print(paste("Writing filtered counts csv to: ", filtrc_out_file))
-write.csv(filtered_counts, filtrc_out_file, row.names=F, quote=F)
+write_out_table(filtered_counts, filtrc_out_file)
 
 # Ensure that files were successfully generated ----
 check_file_exists(annot_out_file)

@@ -12,7 +12,6 @@ echo "Build dir is: $BUILD_DIR"
 args=(
 --build_path "$BUILD_DIR"
 --s3_bucket "macchiato.clue.io"
---days "$DAYS"
 )
 
 echo python3 sushi_2_s3/sushi_2_s3.py "${args[@]}"

@@ -41,22 +41,14 @@ collapse_bio_reps= function(l2fc, sig_cols, cell_line_cols= c('depmap_id', 'lua'
     print(cell_line_cols)
     stop('Not all cell_line_cols (printed above) are present in the l2fc file.')
   }
-  
-  # Median collapsing bio replicates ----
-  if ("l2fc_uncorrected" %in% colnames(l2fc)) {
-    message("Detecting l2fc_uncorrected. Calculating median for both l2fc and l2fc_uncorrected.")
-    collapsed_counts = l2fc |>
-      dplyr::group_by(across(all_of(c(cell_line_cols, sig_cols)))) |>
-      dplyr::summarise(median_l2fc = median(l2fc),
-                       median_l2fc_uncorrected = median(l2fc_uncorrected),
-                       num_bio_reps = dplyr::n(), .groups = "drop")
-  } else {
-    collapsed_counts = l2fc |>
-      dplyr::group_by(across(all_of(c(cell_line_cols, sig_cols)))) |>
-      dplyr::summarise(median_l2fc = median(l2fc),
-                       num_bio_reps = dplyr::n(), .groups = "drop")
-  }
-  
+
+  # Collapse bio replicates and calculate median l2fcs
+  median_cols = c("l2fc", "l2fc_uncorrected")
+  collapsed_counts = l2fc |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(c(cell_line_cols, sig_cols)))) |>
+    dplyr::summarise(dplyr::across(tidyselect::any_of(median_cols), median, .names = "median_{.col}"),
+                     num_bio_reps = dplyr::n(), .groups = "drop")
+
   # Validation: Check that replicates were collapsed ----
   if('bio_rep' %in% colnames(l2fc)) {
     num_unique_bio_reps= length(unique(l2fc$bio_rep))

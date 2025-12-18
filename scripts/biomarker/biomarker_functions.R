@@ -277,7 +277,7 @@ random_forest <- function (X, y, k = 5, vc = 0.01, lm = 25, p0 = 0.01, folds = N
 #' @export
 #'
 #' @examples
-read_dataset <- function(file = "/data/biomarker/current/prism_biomarker_public_0625.h5", dataset,
+read_dataset <- function(file = "/cmap/obelix/pod/biomarker/depmap_public_24q4.h5", dataset,
                          rownames_depmap_ids = TRUE) {
   require(rhdf5)
   if(word(file, sep = fixed("://")) %in% c("s3", "http", "https")){
@@ -314,7 +314,7 @@ read_dataset <- function(file = "/data/biomarker/current/prism_biomarker_public_
 #' @export
 #'
 #' @examples
-read_features <- function(file = "/data/biomarker/current/prism_biomarker_public_0625.h5",
+read_features <- function(file = "/cmap/obelix/pod/biomarker/depmap_public_24q4.h5",
                           dataset, feature_names = NULL,
                           rownames_depmap_ids = TRUE) {
   require(rhdf5)
@@ -535,7 +535,7 @@ create_multivariate_biomarker_table <- function(in_path, out_path = NULL,
   }
 
   # load the input file
-  input_file <- data.table::fread(in_path)
+  input_file <- read_data_table(in_path)
 
   # check if the input table populated
   if(nrow(input_file) == 0){
@@ -568,7 +568,7 @@ create_multivariate_biomarker_table <- function(in_path, out_path = NULL,
     tidyr::unite(y, all_of(treatment_columns), sep = "::", remove = FALSE) %>% 
     dplyr::inner_join(multivariate_biomarker_table) %>% 
     dplyr::select(-y) %>%
-    write.csv(file.path(out_path, output_file_name), row.names = FALSE)
+    write_out_table(path = file.path(out_path, output_file_name))
 }
 
 
@@ -613,7 +613,7 @@ create_univariate_biomarker_table <- function(in_path, out_path,
   }
 
   # load the input file
-  input_file <- data.table::fread(in_path)
+  input_file <- read_data_table(in_path)
 
   # check if the input table populated
   if(nrow(input_file) == 0){
@@ -651,5 +651,5 @@ create_univariate_biomarker_table <- function(in_path, out_path,
     tidyr::unite(y, all_of(treatment_columns), sep = "::", remove = FALSE) %>%
     dplyr::inner_join(univariate_biomarker_table) %>%
     dplyr::select(-y) %>%
-    write.csv(file.path(out_path, output_file_name), row.names = FALSE)
+    write_out_table(path = file.path(out_path, output_file_name))
 }

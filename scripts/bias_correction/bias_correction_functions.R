@@ -10,9 +10,9 @@
 #' @param growth_pattern_col String name of a column in df containing the growth annotations.
 #' @param negcon_norm_col String name of a column in df containing negcon_log2_norm_n.
 #' @param cell_set_col String name of a column in df containing cell set information.
-apply_growth_correction = function(df, raw_l2fc_col = "l2fc", growth_pattern_col = "growth_pattern",
-                                   negcon_norm_col = "negcon_log2_norm_n",
-                                   cell_set_col = "cell_set") {
+apply_bias_correction = function(df, raw_l2fc_col = "l2fc", growth_pattern_col = "growth_condition",
+                                 negcon_norm_col = "negcon_log2_norm_n",
+                                 cell_set_col = "cell_set") {
 
   # Filter out infinite/NA rows and set factors
   centered_df = df |> dplyr::filter(is.finite(.data[[raw_l2fc_col]]), is.finite(.data[[negcon_norm_col]]),

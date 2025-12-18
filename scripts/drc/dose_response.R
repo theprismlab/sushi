@@ -28,7 +28,7 @@ parser$add_argument("--out_dir", default= "", help = "Path to the output directo
 args <- parser$parse_args()
 
 # Read in l2fc file ----
-l2fc= data.table::fread(args$l2fc, header= TRUE, sep= ',')
+l2fc= read_data_table(args$l2fc)
 
 # Parse some parameters ----
 cell_line_cols= unlist(strsplit(args$cell_line_cols, ","))
@@ -98,7 +98,7 @@ if (nrow(dose_response) == 0) {
 
   drc_outpath = file.path(args$out_dir, "DRC_TABLE.csv")
   paste0("Writing DRC_TABLE.csv to ", drc_outpath)
-  write.csv(dose_response, drc_outpath, row.names = FALSE)
+  write_out_table(dose_response, drc_outpath)
 
   # Check to make sure that the file was generated
   check_file_exists(drc_outpath)

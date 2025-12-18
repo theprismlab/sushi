@@ -100,7 +100,7 @@ if (univariate_biomarker) {
       message("INFO: Creating univariate biomarkers for ", dr_column)
 
       # Make sure column names are present
-      drc = data.table::fread(drc_file)
+      drc = read_data_table(drc_file)
       trt_cols_auc = intersect(trt_cols, colnames(drc))
       message("INFO: Trt cols for auc are  ", paste(trt_cols_auc, sep = ", "))
 
@@ -153,7 +153,7 @@ if (multivariate_biomarker) {
       message("INFO: Creating multivariate biomarkers for ", dr_column)
 
       # Make sure column names are present
-      drc = data.table::fread(drc_file)
+      drc = read_data_table(drc_file)
       trt_cols_auc = intersect(trt_cols, colnames(drc))
       message("INFO: Trt cols for auc are  ", paste(trt_cols_auc, sep = ", "))
 

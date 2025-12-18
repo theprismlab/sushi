@@ -1,13 +1,23 @@
+import sys
+import os
+
+# This line gets the absolute path to the current script file
+current_file_path = os.path.abspath(__file__)
+
+# This line goes "up" two levels (from sushi_2_s3.py -> sushi_2_s3/ -> scripts/)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file_path)))
+
+# Add the project root to the list of places Python looks for modules
+sys.path.insert(0, project_root)
+
 import pandas as pd
 import argparse
-import os
-import sys
 import glob
 import json
 import boto3
 from botocore.exceptions import NoCredentialsError
 import logging
-from prism_tools.prism_read import SushiBuild
+from sushilib.prism_tools import SushiBuild
 import polars as pl
 
 logger = logging.getLogger("sushi_2_s3")
@@ -29,13 +39,6 @@ def build_parser():
     )
     parser.add_argument(
         "--build_path", "-b", help="Path to the build directory.", required=True
-    )
-    parser.add_argument(
-        "--days",
-        "-d",
-        help="Comma separated string of days to keep, defaults to 5.",
-        default="5",
-        required=False,
     )
     parser.add_argument(
         "--verbose",
@@ -178,20 +181,6 @@ def sync_to_s3(local_dir, s3_bucket, s3_prefix, exclude_pattern=None):
 def main(args):
     # Get the build path
     build_path = args.build_path
-
-    # Filter data to only the specified days
-    days = args.days
-    if days:
-        days = [int(day.strip()) for day in days.split(",")]
-        logger.info(f"Filtering dataframes to only include days: {days}")
-        logger.info("Reading SushiBuild object...")
-        build = SushiBuild(build_path)
-        for name, df in build:
-            logger.info(f"{name}, {df.schema}, {df.shape}")
-        logger.info(f"Loaded build: {build}")
-        build.update_tables(lambda df: df.filter(pl.col("day").is_in(days)))
-    else:
-        logging.info("No days specified, not filtering dataframes.")
 
     # Read the config file
     config_path = args.build_path + "/config.json"

@@ -78,38 +78,31 @@ args <- parser$parse_args()
 
 # Read in files as data.table objects ----
 print(paste0("Reading in ", args$cell_set_and_pool_meta, "....."))
-cell_set_meta <- data.table::fread(args$cell_set_and_pool_meta, header = TRUE, sep = ",")
+cell_set_meta <- read_data_table(args$cell_set_and_pool_meta)
 print(paste0("Reading in ", args$annotated_counts, "....."))
-annotated_counts <- data.table::fread(args$annotated_counts, header = TRUE, sep = ",")
+annotated_counts <- read_data_table(args$annotated_counts)
 print(paste0("Reading in ", args$filtered_counts, "....."))
-filtered_counts <- data.table::fread(args$filtered_counts, header = TRUE, sep = ",")
+filtered_counts <- read_data_table(args$filtered_counts)
 print(paste0("Reading in ", args$control_barcode_meta, "....."))
-cb_meta <- data.table::fread(args$control_barcode_meta, header = TRUE, sep = ",")
+cb_meta <- read_data_table(args$control_barcode_meta)
 print(paste0("Reading in ", args$unknown_barcode_counts, "....."))
-unknown_counts <- data.table::fread(args$unknown_barcode_counts, header = TRUE, sep = ",")
+unknown_counts <- read_data_table(args$unknown_barcode_counts)
 print(paste0("Reading in ", args$sample_meta, "....."))
-sample_meta <- data.table::fread(args$sample_meta, header = TRUE, sep = ",")
+sample_meta <- read_data_table(args$sample_meta)
 # If normzlied_counts_original.csv exists, use that, otherwise use args$normalized_counts
 normalized_counts_original_path <- paste0(args$out, "/normalized_counts_original.csv")
 if (file.exists(normalized_counts_original_path)) {
   print("Original normalized counts found, will use this file for QC flags and tables.")
   print("Reading in normalized_counts_original.csv.....")
-  normalized_counts <- data.table::fread(normalized_counts_original_path, header = TRUE, sep = ",")
+  normalized_counts <- read_data_table(normalized_counts_original_path)
 } else {
 print(paste0("Reading in ", args$normalized_counts, "....."))
-normalized_counts <- data.table::fread(args$normalized_counts, header = TRUE, sep = ",")
+normalized_counts <- read_data_table(args$normalized_counts)
 }
 print(paste0("Reading in ", args$prism_barcode_counts, "....."))
-prism_barcode_counts <- data.table::fread(args$prism_barcode_counts, header = TRUE, sep = ",")
+prism_barcode_counts <- read_data_table(args$prism_barcode_counts)
 print(paste0("Reading in ", args$cell_line_meta, "....."))
-cell_line_meta <- data.table::fread(args$cell_line_meta, header = TRUE, sep = ",")
-
-# Join unknown_counts and prism_barcode_counts with sample_meta to ensure only appropriate wells are kept
-unknown_counts <- unknown_counts %>%
-  right_join(sample_meta %>% select(pcr_plate, pcr_well), by = c("pcr_plate", "pcr_well"))
-
-prism_barcode_counts <- prism_barcode_counts %>%
-    right_join(sample_meta %>% select(pcr_plate, pcr_well), by =c("pcr_plate", "pcr_well"))
+cell_line_meta <- read_data_table(args$cell_line_meta)
 
 # Check if the output directory exists, if not create it
 if (!dir.exists(paste0(args$out, "/qc_tables"))) {
@@ -120,11 +113,8 @@ if (!dir.exists(paste0(args$out, "/qc_tables"))) {
 contains_poscon <- any(sample_meta$pert_type == args$poscon_type)
 
 # DEFINE COLUMNS
-cell_line_cols <- args$cell_line_cols
-cell_line_cols_list <- strsplit(cell_line_cols, ",")[[1]]
-cell_plate_list <- c(cell_line_cols, "pcr_plate")
-id_cols <- args$id_cols
-id_cols_list <- strsplit(id_cols, ",")[[1]]
+cell_line_cols = unlist(strsplit(args$cell_line_cols, ","))
+id_cols = unlist(strsplit(args$id_cols, ","))
 sig_cols = unlist(strsplit(args$sig_cols, ","))
 count_threshold <- as.numeric(args$count_threshold)
 pseudocount <- as.numeric(args$pseudocount)
@@ -140,7 +130,7 @@ thresholds <- load_thresholds_from_json(args$qc_params)
 
 # Calculate the number of expected poscons and negcons
 n_expected_controls <- sample_meta %>%
-  filter(pert_type %in% c("trt_poscon", "ctl_vehicle")) %>%
+  dplyr::filter(pert_type %in% c(negcon, poscon)) %>%
   group_by(pert_plate, pcr_plate, pert_type) %>%
   summarize(unique_bio_rep = n_distinct(bio_rep), .groups = "drop") %>%
   pivot_wider(
@@ -152,7 +142,7 @@ n_expected_controls <- sample_meta %>%
 # ID COLS
 id_cols_table <- generate_id_cols_table(
   normalized_counts = normalized_counts, annotated_counts = annotated_counts, unknown_counts = unknown_counts,
-  cell_set_meta = cell_set_meta, id_cols_list = id_cols_list, cell_line_cols = cell_line_cols_list,
+  cell_set_meta = cell_set_meta, id_cols = id_cols, cell_line_cols = cell_line_cols,
   count_threshold = count_threshold, cb_meta = cb_meta, pseudocount = pseudocount
 )
 
@@ -166,7 +156,7 @@ id_cols_qc_flags_table <- id_cols_qc_flags(id_cols_table = id_cols_table,
                                            cb_cl_ratio_high_negcon = thresholds$cb_cl_ratio_high_negcon,
                                            well_reads_threshold = thresholds$well_reads_threshold)
 
-id_cols_filtered_normalized_counts <- dplyr::anti_join(normalized_counts, id_cols_qc_flags_table, by = c("pcr_plate", "pcr_well"))
+id_cols_filtered_normalized_counts <- dplyr::anti_join(normalized_counts, id_cols_qc_flags_table, by = id_cols)
 
 
 # POOL WELL
@@ -192,7 +182,8 @@ filtered_counts_rm_ctl <- filtered_counts %>%
 
 plate_cell_table <- generate_cell_plate_table(
   normalized_counts = filtered_normalized_counts_rm_ctl, filtered_counts = filtered_counts_rm_ctl,
-  cell_line_cols = cell_plate_list, sig_cols = sig_cols, pseudocount = pseudocount, contains_poscon = contains_poscon,
+  n_expected_controls = n_expected_controls,
+  cell_line_cols = cell_line_cols, sig_cols = sig_cols, pseudocount = pseudocount, contains_poscon = contains_poscon,
   poscon = poscon, negcon = negcon,
   nc_variability_threshold = thresholds$nc_variability_threshold,
   error_rate_threshold = thresholds$error_rate_threshold,
@@ -211,10 +202,8 @@ plate_cell_qc_flags_table <- plate_cell_qc_flags(
 
 
 plate_cell_filtered_normalized_counts <-
-  dplyr::anti_join(
-  pool_well_filtered_normalized_counts, plate_cell_qc_flags_table,
-  by = c("pcr_plate", "depmap_id", "lua", "pool_id")
-)
+  dplyr::anti_join(pool_well_filtered_normalized_counts, plate_cell_qc_flags_table,
+                   by = c("pcr_plate", "depmap_id", "lua", "pool_id"))
 
 
 # PCR PLATE
@@ -233,19 +222,13 @@ final_filtered_normalized_counts <- pool_well_filtered_normalized_counts
 # Write pcr_plate_qc_flags table
 pcr_plate_qc_flags_outpath <- paste0(args$out, "/qc_tables/pcr_plate_qc_flags.csv")
 print(paste0("Writing out pcr_plate_qc_flags to ", pcr_plate_qc_flags_outpath))
-write.csv(
-  x = pcr_plate_qc_flags_table, file = pcr_plate_qc_flags_outpath, row.names = FALSE,
-  quote = FALSE
-)
+write_out_table(table = pcr_plate_qc_flags_table, path = pcr_plate_qc_flags_outpath)
 check_file_exists(pcr_plate_qc_flags_outpath)
 
 # Write plate_cell_qc_table for internal use
 plate_cell_qc_table_outpath <- paste0(args$out, "/qc_tables/plate_cell_qc_table_internal.csv")
 print(paste0("Writing out internal plate_cell_qc_table to ", plate_cell_qc_table_outpath))
-write.csv(
-  x = plate_cell_table, file = plate_cell_qc_table_outpath, row.names = FALSE,
-  quote = FALSE
-)
+write_out_table(table = plate_cell_table, path = plate_cell_qc_table_outpath)
 check_file_exists(plate_cell_qc_table_outpath)
 
 # Write plate_cell_qc_table for portal use
@@ -271,12 +254,8 @@ if (contains_poscon) {
     "qc_pass", "qc_pass_pert_plate"
   )
 }
-write.csv(
-  x = plate_cell_table %>%
-    dplyr::select(all_of(columns_to_write)),
-  file = plate_cell_qc_table_outpath_external, row.names = FALSE,
-  quote = FALSE
-)
+write_out_table(table = plate_cell_table %>% dplyr::select(all_of(columns_to_write)),
+                path = plate_cell_qc_table_outpath_external)
 check_file_exists(plate_cell_qc_table_outpath_external)
 
 # Write cl_pertplate_pass_rate_qc_table for portal
@@ -286,54 +265,38 @@ pertplate_cell_pass_rate <- plate_cell_table %>%
   dplyr::group_by(pert_plate, project_code) %>%
   dplyr::summarise(num_cl_pass=sum(qc_pass_pert_plate),
                    num_cl_failed=sum(!qc_pass_pert_plate)) %>%
-  dplyr::ungroup() 
-write.csv(pertplate_cell_pass_rate,
-          pertplate_cell_pass_rate_outpath,
-          row.names = F, quote = F)
+  dplyr::ungroup()
+write_out_table(pertplate_cell_pass_rate, pertplate_cell_pass_rate_outpath)
 check_file_exists(pertplate_cell_pass_rate_outpath)
 
 # Write plate_cell_qc_flags table
 plate_cell_qc_flags_outpath <- paste0(args$out, "/qc_tables/plate_cell_qc_flags.csv")
 print(paste0("Writing out plate_cell_qc_flags to ", plate_cell_qc_flags_outpath))
-write.csv(
-  x = plate_cell_qc_flags_table, file = plate_cell_qc_flags_outpath, row.names = FALSE,
-  quote = FALSE
-)
+write_out_table(table = plate_cell_qc_flags_table, path = plate_cell_qc_flags_outpath)
 check_file_exists(plate_cell_qc_flags_outpath)
 
 # Write pool_well_qc_table ----------
 pool_well_qc_table_outpath <- paste0(args$out, "/qc_tables/pool_well_qc_table.csv")
 print(paste0("Writing out pool_well_qc_table to ", pool_well_qc_table_outpath))
-write.csv(
-  x = pool_well_table, file = pool_well_qc_table_outpath, row.names = FALSE,
-  quote = FALSE
-)
+write_out_table(table = pool_well_table, path = pool_well_qc_table_outpath)
 check_file_exists(pool_well_qc_table_outpath)
 
 # Write pool_well_qc_flags table ----------
 pool_well_qc_flags_outpath <- paste0(args$out, "/qc_tables/pool_well_qc_flags.csv")
 print(paste0("Writing out pool_well_qc_flags to ", pool_well_qc_flags_outpath))
-write.csv(
-  x = pool_well_qc_flags_table, file = pool_well_qc_flags_outpath, row.names = FALSE,
-  quote = FALSE
-)
+write_out_table(table = pool_well_qc_flags_table, path = pool_well_qc_flags_outpath)
 check_file_exists(pool_well_qc_flags_outpath)
 
 # Write id_cols table ----------
 id_cols_outpath <- paste0(args$out, "/qc_tables/id_cols_qc_table.csv")
 print(paste0("Writing out id_cols_qc_table to ", id_cols_outpath))
-write.csv(
-  x = id_cols_table, file = id_cols_outpath, row.names = FALSE, quote = FALSE
-)
+write_out_table(table = id_cols_table, path = id_cols_outpath)
 check_file_exists(id_cols_outpath)
 
 # Write id_cols_qc_flags table ----------
 id_cols_qc_flags_outpath <- paste0(args$out, "/qc_tables/id_cols_qc_flags.csv")
 print(paste0("Writing out id_cols_qc_flags to ", id_cols_qc_flags_outpath))
-write.csv(
-  x = id_cols_qc_flags_table, file = id_cols_qc_flags_outpath, row.names = FALSE,
-  quote = FALSE
-)
+write_out_table(table = id_cols_qc_flags_table, path = id_cols_qc_flags_outpath)
 check_file_exists(id_cols_qc_flags_outpath)
 
 if (args$filter_qc_flags) {
@@ -342,19 +305,13 @@ if (args$filter_qc_flags) {
   # Write original normalized counts ----------
   normalized_counts_original_outpath <- paste0(args$out, "/normalized_counts_original.csv")
   print(paste0("Writing unfiltered normalized_counts to ", normalized_counts_original_outpath))
-  write.csv(
-    x = normalized_counts, file = normalized_counts_original_outpath, row.names = FALSE,
-    quote = FALSE
-  )
+  write_out_table(table = normalized_counts, path = normalized_counts_original_outpath)
   check_file_exists(normalized_counts_original_outpath)
 
   # Write filtered normalized counts ----------
   filtered_normalized_counts_outpath <- paste0(args$out, "/normalized_counts.csv")
   print(paste0("Writing filtered normalized_counts to ", filtered_normalized_counts_outpath))
-  write.csv(
-    x = final_filtered_normalized_counts, file = filtered_normalized_counts_outpath, row.names = FALSE,
-    quote = FALSE
-  )
+  write_out_table(table = final_filtered_normalized_counts, path = filtered_normalized_counts_outpath)
   check_file_exists(filtered_normalized_counts_outpath)
 } else {
   print("Nomalized counts not filtered for qc_flags.")
@@ -365,15 +322,13 @@ print("Computing variance decomposition table...")
 variance_decomp <- compute_variance_decomposition(
   normalized_counts = normalized_counts,
   metric = "n",
-  cell_line_cols = cell_line_cols_list,
-  id_cols = id_cols_list,
+  cell_line_cols = cell_line_cols,
+  id_cols = id_cols,
   negcon = negcon
 )
 variance_decomp_outpath <- paste0(args$out, "/qc_tables/variance_decomposition.csv")
 print(paste0("Writing out variance_decomposition to ", variance_decomp_outpath))
-write.csv(
-  x = variance_decomp, file = variance_decomp_outpath, row.names = FALSE,
-  quote = FALSE)
+write_out_table(table = variance_decomp, path = variance_decomp_outpath)
 check_file_exists(variance_decomp_outpath)
 
 # Compute contamination tables
@@ -390,10 +345,7 @@ contamination_tables <- compute_contamination_qc_tables(
 for (table_name in names(contamination_tables)) {
   table_outpath <- paste0(args$out, "/qc_tables/", table_name, ".csv")
   print(paste0("Writing out ", table_name, " to ", table_outpath))
-  write.csv(
-    x = contamination_tables[[table_name]], file = table_outpath, row.names = FALSE,
-    quote = FALSE
-  )
+  write_out_table(table = contamination_tables[[table_name]], path = table_outpath)
   check_file_exists(table_outpath)
 }
 

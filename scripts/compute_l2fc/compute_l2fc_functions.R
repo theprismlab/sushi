@@ -18,6 +18,7 @@
 compute_l2fc= function(normalized_counts,
                        control_type = "ctl_vehicle",
                        sig_cols=c('cell_set','pert_name','pert_dose','pert_dose_unit','day'),
+                       bio_rep_col = "bio_rep",
                        ctrl_cols= c('cell_set', 'day'), # will probably be a subset of sig_cols
                        count_col_name="log2_normalized_n",
                        cell_line_cols= c('lua', 'depmap_id', 'pool_id')) {
@@ -36,29 +37,30 @@ compute_l2fc= function(normalized_counts,
   
   # Collapsing technical replicates ----
   # Detect bio_rep column to be used to collapse technical replicates
-  if('bio_rep' %in% colnames(normalized_counts)) {
-    bio_rep_id_cols= c(sig_cols, 'bio_rep')
+  if(bio_rep_col == "") {
+    message("No bio_rep column specified. Assuming that there are NO biological replicates.")
+    sig_bio_rep_cols = sig_cols
   } else {
-    bio_rep_id_cols= sig_cols
-    print('WARNING: bio_rep column not detected. Assuming that there are NO biological replicates.') 
-    print('Technical replicate collapse will be performed across the sig_cols.')
+    sig_bio_rep_cols = unique(c(sig_cols, bio_rep_col))
   }
   
   # collapse tech reps
-  print('Collapsing technical replicates on the following columns: ')
-  print(unique(c(cell_line_cols, 'pert_type', bio_rep_id_cols, ctrl_cols)))
+  grouping_cols = unique(c(cell_line_cols, "pert_type", sig_bio_rep_cols, ctrl_cols))
+  message("Collapsing technical replicates on the following columns: ",
+          paste(grouping_cols, collapse = ", "))
+
   collapsed_tech_rep= normalized_counts %>%
     filter_control_barcodes() %>%
     dplyr::filter(!(pert_type %in% c('empty', '', 'CB_only', NA))) %>%
-    dplyr::group_by(pick(all_of(c(cell_line_cols, 'pert_type', bio_rep_id_cols, ctrl_cols)))) %>%
+    dplyr::group_by(across(all_of(grouping_cols))) %>%
     dplyr::summarise(mean_n= mean(n),
                      mean_normalized_n= mean(2^(!!rlang::sym(count_col_name)))) %>% dplyr::ungroup()
-  
+
   # Print out the occurrence of each count of tech_reps
   # print('Number of technical replicate collapsed across all cell lines and biological replicates:')
-  # print(collapsed_tech_rep %>% dplyr::group_by(num_tech_reps) %>% 
+  # print(collapsed_tech_rep %>% dplyr::group_by(num_tech_reps) %>%
   #         dplyr::summarise(count= dplyr::n()) %>% dplyr::ungroup())
-    
+
   # Pull out negative controls and collapse any biological replicates ----
   print('Collapsing control conditions on the following columns: ')
   print(unique(c(cell_line_cols, ctrl_cols)))

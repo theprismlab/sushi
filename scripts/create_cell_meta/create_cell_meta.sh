@@ -98,6 +98,7 @@ parameters=(
   "CONTROL_BARCODE_META:$CONTROL_BARCODE_META"
   "BUILD_NAME:$BUILD_NAME"
   "API_KEY:$API_KEY"
+  "CELL_LINE_COLS:$CELL_LINE_COLS"
 )
 
 echo $R_LIBS
@@ -107,7 +108,7 @@ args=(
 --out "$BUILD_DIR"
 --cb_ladder "$CONTROL_BARCODE_META"
 --api_key "$API_KEY"
---growth_annotations "${GROWTH_ANNOTATIONS}"
+--cell_line_cols "$CELL_LINE_COLS"
 )
 
 echo Rscript create_cell_meta/create_cell_meta.R "${args[@]}"

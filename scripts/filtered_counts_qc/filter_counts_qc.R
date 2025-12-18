@@ -51,18 +51,18 @@ if (args$out == ""){
 }
 
 # Read in input files ----
-sample_meta= data.table::fread(args$sample_meta, header= TRUE, sep= ',')
-prism_barcode_counts= data.table::fread(args$prism_barcode_counts, header= TRUE, sep= ',')
-unknown_barcode_counts= data.table::fread(args$unknown_barcode_counts, header= TRUE, sep= ',')
-annotated_counts= data.table::fread(args$annotated_counts, header= TRUE, sep= ',')
+sample_meta= read_data_table(args$sample_meta)
+prism_barcode_counts= read_data_table(args$prism_barcode_counts)
+unknown_barcode_counts= read_data_table(args$unknown_barcode_counts)
+annotated_counts= read_data_table(args$annotated_counts)
 if(file.exists(args$normalized_counts)) {
   print('Detecting normalized_counts.')
-  normalized_counts= data.table::fread(args$normalized_counts, header=TRUE, sep=',')
+  normalized_counts= read_data_table(args$normalized_counts)
 } else {
   print('NOT finding normalized_counts ...')
   normalized_counts= NA
 }
-l2fc= data.table::fread(args$lfc, header= TRUE, sep= ',')
+l2fc= read_data_table(args$lfc)
 
 # Parse some input parameters ----
 id_cols= unlist(strsplit(args$id_cols, ','))

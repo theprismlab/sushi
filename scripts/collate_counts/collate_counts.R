@@ -27,6 +27,10 @@ parser$add_argument("--barcode_col", default= "forward_read_barcode",
 parser$add_argument('--low_abundance_threshold', default= 20, 
                     help= 'For unknown barcodes, counts below this threshold will be marked as an unknown barcode.')
 parser$add_argument('--chunk_size', default= 10000000, help= 'Integer number of rows for a chunk.')
+parser$add_argument("--prism_barcode_counts_file", default = "prism_barcode_counts.csv",
+                    help = "Name of file for prism barcodes.")
+parser$add_argument("--unknown_barcode_counts_file", default = "unknown_barcode_counts.csv",
+                    help = "Name of file for unknown barcodes.")
 parser$add_argument("-o", "--out", default=getwd(), help = "Output path. Default is working directory")
 
 # get command line options, if help option encountered print help and exit
@@ -41,9 +45,9 @@ if (args$out == "") {
 delete_existing_files(args$out, "barcode_counts")
 
 # Read in metadata files as data.table objects ----
-cell_line_meta= data.table::fread(args$cell_line_meta, header= TRUE, sep= ',')
-CB_meta= data.table::fread(args$CB_meta, header= TRUE, sep= ',')
-sample_meta= data.table::fread(args$sample_meta, header= TRUE, sep= ',')
+cell_line_meta= read_data_table(args$cell_line_meta)
+CB_meta= read_data_table(args$CB_meta)
+sample_meta= read_data_table(args$sample_meta)
 ## if flowcell_lanes one lane, the integer gets read in as numeric, so force this to be a string
 if(validate_columns_exist("flowcell_lanes", sample_meta)){
   sample_meta %<>% mutate(flowcell_lanes = as.character(flowcell_lanes))
@@ -77,7 +81,7 @@ if(!args$barcode_col %in% colnames(cell_line_meta)) {
 }
 
 # Validation: Check that barcode_col is present in the raw_counts_uncollapsed ----
-raw_counts_uncollapsed_header <- data.table::fread(args$raw_counts_uncollapsed, header= TRUE, sep= ',', nrows = 0)
+raw_counts_uncollapsed_header <- read_data_table(args$raw_counts_uncollapsed, nrows = 0)
 if (!args$barcode_col %in% colnames(raw_counts_uncollapsed_header)) {
   stop('barcode_col is NOT present in the raw_counts_uncollapsed.')
 }
@@ -114,16 +118,16 @@ if(nrow(prism_barcode_counts) == 0) {
 }
 
 # Write out files ----
-out_file= paste(args$out, 'prism_barcode_counts.csv', sep='/')
+out_file = file.path(args$out, args$prism_barcode_counts_file)
 print(paste("Writing prism_barcode_counts.csv to ", out_file))
-write.csv(prism_barcode_counts, out_file, row.names= FALSE, quote= FALSE)
+write_out_table(prism_barcode_counts, out_file)
 
 # Ensure that files were successfully generated ----
 check_file_exists(out_file)
 
-out_file= paste(args$out, 'unknown_barcode_counts.csv', sep='/')
+out_file = file.path(args$out, args$unknown_barcode_counts_file)
 print(paste("Writing unknown_barcode_counts.csv to ", out_file))
-write.csv(unknown_barcode_counts, out_file, row.names= FALSE, quote= FALSE)
+write_out_table(unknown_barcode_counts, out_file)
 
 # Ensure that files were successfully generated ----
 check_file_exists(out_file)

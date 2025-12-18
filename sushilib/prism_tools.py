@@ -1,6 +1,7 @@
 import polars as pl
 from pathlib import Path
 from typing import Callable
+from sushilib.sushi_io.reader import read_polars
 
 
 class SushiBuild:
@@ -32,97 +33,6 @@ class SushiBuild:
         ("eps_qc_table", "qc_tables/eps_qc_table.csv"),
     ]
 
-    _SCHEMA = {
-        "pert_name": pl.Utf8,
-        "pert2_name": pl.Utf8,
-        "pert_id": pl.Utf8,
-        "pert2_id": pl.Utf8,
-        "pert_dose": pl.Float64,
-        "pert2_dose": pl.Float64,
-        "pert_dose_unit": pl.Utf8,
-        "pert2_dose_unit": pl.Utf8,
-        "pert_type": pl.Utf8,
-        "lua": pl.Utf8,
-        "depmap_id": pl.Utf8,
-        "cell_set": pl.Utf8,
-        "pool_id": pl.Utf8,
-        "day": pl.Int64,
-        "pcr_well": pl.Utf8,
-        "pcr_plate": pl.Utf8,
-        "pert_plate": pl.Utf8,
-        "bio_rep": pl.Int64,
-        "tech_rep": pl.Int64,
-        "replicate_plate": pl.Utf8,
-        "pert_vehicle": pl.Utf8,
-        "is_combination": pl.Boolean,
-        "cb_ladder": pl.Utf8,
-        "cb_name": pl.Utf8,
-        "cb_log2_dose": pl.Float64,
-        "growth_pattern": pl.Utf8,
-        "cb_intercept": pl.Float64,
-        "log2_normalized_n": pl.Float64,
-        "n": pl.Int64,
-        "mad_log2_cb_frac": pl.Float64,
-        "num_reps": pl.Int64,
-        "log2_pseudovalue": pl.Float64,
-        "l2fc": pl.Float64,
-        "contrrol_median_normalized_n": pl.Float64,
-        "mean_normalized_n": pl.Float64,
-        "x_project_id": pl.Utf8,
-        "index_1": pl.Utf8,
-        "index_2": pl.Utf8,
-        "flowcell_names": pl.Utf8,
-        "flowcell_lanes": pl.Utf8,
-        "expected_read": pl.Boolean,
-        "median_l2fc": pl.Float64,
-        "median_l2fc_uncorrected": pl.Float64,
-        "project_code": pl.Utf8,
-        "median_log_normalized_ctl_vehicle": pl.Float64,
-        "median_log_normalized_trt_poscon": pl.Float64,
-        "mad_log_normalized_ctl_vehicle": pl.Float64,
-        "mad_log_normalized_trt_poscon": pl.Float64,
-        "median_raw_ctl_vehicle": pl.Float64,
-        "median_raw_trt_poscon": pl.Float64,
-        "mad_raw_ctl_vehicle": pl.Float64,
-        "mad_raw_trt_poscon": pl.Float64,
-        "n_replicates_ctl_vehicle": pl.Int64,
-        "n_replicates_trt_poscon": pl.Int64,
-        "false_sensitivity_probability_50": pl.Float64,
-        "false_sensitivity_probability_25": pl.Float64,
-        "error_rate": pl.Float64,
-        "lfc_trt_poscon": pl.Float64,
-        "lfc_raw_trt_poscon": pl.Float64,
-        "viability_trt_poscon": pl.Float64,
-        "total_reads": pl.Int64,
-        "fraction_of_reads": pl.Float64,
-        "med_num_trt_bio_reps": pl.Int64,
-        "qc_pass": pl.Boolean,
-        "qc_pass_pert_plate": pl.Boolean,
-        "n_passing_med_num_trt_reps": pl.Int64,
-        "n_expected_ctl_vehicle": pl.Int64,
-        "n_expected_trt_poscon": pl.Int64,
-        "fraction_expected_poscon": pl.Float64,
-        "fraction_expected_negcon": pl.Float64,
-        "qc_flag": pl.Utf8,
-        "n_total_reads": pl.Int64,
-        "n_expected_reads": pl.Int64,
-        "n_cb_reads": pl.Int64,
-        "median_cb_reads": pl.Float64,
-        "fraction_expected_reads": pl.Float64,
-        "n_lines_recovered": pl.Int64,
-        "n_expected_lines": pl.Int64,
-        "fraction_cl_recovered": pl.Float64,
-        "cb_cl_ratio_well": pl.Float64,
-        "fraction_cb_reads": pl.Float64,
-        "cb_cl_ratio_plate": pl.Float64,
-        "skew": pl.Float64,
-        "cb_mae": pl.Float64,
-        "cb_r2": pl.Float64,
-        "cb_spearman": pl.Float64,
-        "n_cell_lines": pl.Int64,
-        "n_outliers": pl.Int64,
-        "fraction_outliers": pl.Float64,
-    }
 
     def __init__(self, build_path):
         self.build_path = Path(build_path).expanduser().resolve()
@@ -134,13 +44,7 @@ class SushiBuild:
             if not p.exists():
                 setattr(self, attr, None)
                 continue
-            kwargs = {
-                "ignore_errors": True,
-                "truncate_ragged_lines": True,
-                "schema_overrides": self._SCHEMA,
-            }
-
-            df = pl.read_csv(p, **kwargs)
+            df = read_polars(p)
 
             setattr(self, attr, df)
 

@@ -3,7 +3,7 @@ title: "PRISM Sushi Vignette and Documentation"
 author: 
   - "PRISM Analytics Team" 
   - "prism@broadinstitute.org"
-date: "Compiled June 2025"
+date: "Compiled December 2025"
 output: 
   html_document:
     toc: true
@@ -78,6 +78,8 @@ if (!dir.exists(local_sushi_path)) {
 if (!dir.exists(local_test_data_path)) {
   stop("Local vignette data not found at ", local_sushi_path)
 }
+# Pull column schema from the github repo
+schema_path = file.path(local_sushi_path, "sushilib", "sushi_io", "schema.yml")
 ```
 
 # Sushi pipeline overview
@@ -140,20 +142,26 @@ source(file.path(local_sushi_path, "scripts", "utils", "kitchen_utensils.R"))
 source(file.path(local_sushi_path, "scripts", "normalize", "normalize_functions.R"))
 
 # Set up inputs ----
-filtered_counts <- data.table::fread(file.path(local_test_data_path, "filtered_counts.csv"))
-CB_meta <- data.table::fread(file.path(local_test_data_path, "CB_meta.csv"))
+filtered_counts <- read_data_table(file.path(local_test_data_path, "filtered_counts.csv"), schema_path)
+CB_meta <- read_data_table(file.path(local_test_data_path, "CB_meta.csv"), schema_path)
 pseudocount <- 0
 input_id_cols <- c("pcr_plate", "pcr_well")
 negcon_cols <- c("pcr_plate", "pert_vehicle")
 
-# Normalize your counts ----
-normalized_counts = normalize(X = filtered_counts, 
-                              id_cols = input_id_cols,
-                              CB_meta = CB_meta, 
-                              pseudocount = pseudocount)
+# Identify control barcodes that can be used for normalization
+cb_annots = flag_control_bcs(filtered_count = filtered_counts,
+                             CB_meta = CB_meta,
+                             id_cols = input_id_cols,
+                             negcon_type = "ctl_vehicle",
+                             cb_mad_cutoff = 1,
+                             req_negcon_reps = 6)
 
-normalized_counts = add_pseudovalue(normalized_counts, negcon_cols,
-                                    read_detection_limit = 10, negcon_type = "ctl_vehicle")
+# Normalize read counts
+normalized_counts = normalize(X = filtered_counts, cb_annots = cb_annots,
+                              id_cols = input_id_cols, pseudocount = pseudocount)
+normalized_counts = add_pseudovalue(normalized_counts, negcon_cols = negcon_cols,
+                                    read_detection_limit = 10,
+                                    negcon_type = "ctl_vehicle")
 
 head(normalized_counts)
 ```
@@ -167,7 +175,8 @@ library(ggrepel)
 # Plot control barcode ladder ----
 normalized_counts %>% 
   dplyr::filter(!is.na(cb_name) & !is.na(cb_log2_dose)) %>%
-  mutate(pcr_profile = paste0(pcr_plate,";", pcr_well)) %>%
+  mutate(pcr_profile = paste0(pcr_plate,";", pcr_well),
+         cb_log2_dose = round(cb_log2_dose, 5)) %>%
   dplyr::group_by(pcr_profile) %>%
   filter(pcr_plate == "SEQ004_S1.X1.PR2025A") %>%
   filter(pcr_well == "A01") %>%
@@ -177,7 +186,7 @@ normalized_counts %>%
   geom_point() +
   geom_abline(aes(slope = 1, intercept = cb_intercept) , color = 'blue') +
   geom_text_repel(nudge_y = 0.2) +
-  labs(x = 'log2(n)', y = 'log2(dose)') + 
+  labs(x = 'log2(n)', y = 'log2(dose)', color = "CB log2 dose") + 
   facet_wrap(pcr_profile~.) +
   theme_bw() + theme(text = element_text(size = 10))
 ```
@@ -253,13 +262,12 @@ source(file.path(local_sushi_path, "scripts", "utils", "kitchen_utensils.R"))
 source(file.path(local_sushi_path, "scripts", "compute_l2fc", "compute_l2fc_functions.R"))
 
 # Set up inputs ----
-normalized_counts <- data.table::fread(file.path(local_test_data_path, "normalized_counts.csv"))
+normalized_counts <- read_data_table(file.path(local_test_data_path, "normalized_counts.csv"), schema_path)
 control_type <- "ctl_vehicle"
-sig_cols <- c("cell_set","pert_name","pert_dose","pert_dose_unit","day")
+sig_cols <- c("pert_name","pert_dose","pert_dose_unit","day")
 ctrl_cols <- c("cell_set", "day", "pcr_plate", "replicate_plate")
 count_col_name <- "log2_normalized_n"
-count_threshold <- 40
-cell_line_cols <- c("lua", "depmap_id", "pool_id")
+cell_line_cols <- c("cell_set", "lua", "depmap_id", "pool_id", "growth_condition")
 
 # Calculated log2 fold changes
 l2fc = compute_l2fc(normalized_counts = normalized_counts,
@@ -267,7 +275,6 @@ l2fc = compute_l2fc(normalized_counts = normalized_counts,
                     sig_cols = sig_cols,
                     ctrl_cols = ctrl_cols,
                     count_col_name = count_col_name,
-                    count_threshold = count_threshold,
                     cell_line_col = cell_line_cols)
 
 head(l2fc)
@@ -275,32 +282,30 @@ head(l2fc)
 
 Cell lines that failed QC can be removed from the log fold-change files as described below:
 ```{r l2fc opt filt, echo = T, eval = F}
-# CURRENTLY NOT AVAILABLE!
-qc_path <- data.table::fread(file.path(local_test_data_path, "qc_table.csv"))
+qc_data <- read_data_table(file.path(local_test_data_path, "qc_table.csv"), schema_path)
 
 # remove cell lines that fail for an entire pert_plate
-qc_data = data.table::fread(qc_path, header= TRUE, sep= ',', data.table= FALSE)
-join_cols = intersect(c(cell_line_cols, "pert_plate"), colnames(qc_data))
-failed_lines_pert_plate = qc_data %>% filter(qc_pass_pert_plate == FALSE) %>% select(all_of(join_cols))
+join_cols = intersect(cell_line_cols, colnames(qc_data))
+failed_lines_pert_plate = qc_data %>% filter(qc_pass_pert_plate == FALSE) %>% dplyr::select(all_of(join_cols))
 
 l2fc = l2fc %>% anti_join(failed_lines_pert_plate, by= join_cols)
 ```
 
-To apply the growth correction, there must be a column in the data frame that describes the growth pattern of a cell line or pool and a column containing log2 normalized counts of the negative controls.
+To apply the bias correction, there must be a column in the data frame that describes the growth pattern of a cell line or pool and a column containing log2 normalized counts of the negative controls.
 
 ```{r example growth correct, echo = T, eval = T}
 # Load into environment ----
-source(file.path(local_sushi_path, "scripts", "growth_correction", "growth_correction.R"))
+source(file.path(local_sushi_path, "scripts", "bias_correction", "bias_correction_functions.R"))
 
 # Set up inputs ----
 bio_rep_id_cols = c(sig_cols, "bio_rep")
-growth_pattern_col = "growth_pattern"
+growth_pattern_col = "growth_condition"
 
 # Correct for growth conditions
 corrected_l2fc = l2fc |>
   dplyr::mutate(negcon_log2_norm_n = log2(control_median_normalized_n)) |>
   dplyr::group_split(dplyr::across(tidyselect::all_of(bio_rep_id_cols))) |>
-  lapply(apply_growth_correction, raw_l2fc_col = "l2fc", growth_pattern_col = growth_pattern_col) |>
+  lapply(apply_bias_correction, raw_l2fc_col = "l2fc", growth_pattern_col = growth_pattern_col) |>
   dplyr::bind_rows() |>
   dplyr::ungroup()
 
@@ -325,7 +330,7 @@ source(file.path(local_sushi_path, "scripts", "utils", "kitchen_utensils.R"))
 source(file.path(local_sushi_path, "scripts", "collapse_replicates", "collapse_replicates_functions.R"))
 
 # Set up inputs ----
-l2fc <- data.table::fread(file.path(local_test_data_path, "l2fc.csv"))
+l2fc <- read_data_table(file.path(local_test_data_path, "l2fc.csv"), schema_path)
 sig_cols <- c("cell_set","pert_name","pert_dose","pert_dose_unit","day")
 cell_line_cols <- c("depmap_id", "lua", "pool_id")
 
@@ -393,7 +398,7 @@ source(file.path(local_sushi_path, "scripts", "utils", "kitchen_utensils.R"))
 source(file.path(local_sushi_path, "scripts", "drc", "dose_response_functions.R"))
 
 # Set up inputs ----
-l2fc <- data.table::fread(file.path(local_test_data_path, "l2fc.csv"))
+l2fc <- read_data_table(file.path(local_test_data_path, "l2fc.csv"), schema_path)
 cell_line_cols <- c("depmap_id", "lua", "pool_id")
 sig_cols <- c("cell_set", "pert_name", "pert_dose", "pert_dose_unit", "day")
 dose_col <- "pert_dose"
@@ -412,6 +417,7 @@ treatment_cols <- union(
 select_cell_lines <- c("ACH-000008", "ACH-000810")
 
 dose_response <- create_drc_table(LFC = l2fc %>% filter(depmap_id %in% select_cell_lines),
+                                  screen_type = "MTS_SEQ",
                                 cell_line_cols = cell_line_cols,
                                 treatment_cols = treatment_cols,
                                 dose_col = dose_col,
@@ -493,7 +499,7 @@ print(drc_plot)
 Using more cell lines from the dose-response results in conjunction with the lineage information in the available h5 file (more information in the biomarker section), you can recreate the lineage enrichment boxplots seen on the PRISM portla by plotting lineages and the cell line's AUC.
 
 ```{r example univariate lineage boxplots, echo = T, eval = T}
-drc_table = data.table::fread(file.path(local_test_data_path, "drc_table.csv"))
+drc_table = read_data_table(file.path(local_test_data_path, "drc_table.csv"), schema_path)
 depmap_file_path <- file.path(local_test_data_path, "prism_biomarker_public_0625.h5")
 
 lineages <- rhdf5::h5read(depmap_file_path, name = "Lineage_Table/table")
@@ -538,7 +544,7 @@ source(file.path(local_sushi_path, "scripts", "biomarker", "biomarker_functions.
 
 # Set up inputs ----
 depmap_file_path <- file.path(local_test_data_path, "prism_biomarker_public_0625.h5")
-collapsed_l2fc <- data.table::fread(file.path(local_test_data_path, "collapsed_l2fc.csv"))
+collapsed_l2fc <- read_data_table(file.path(local_test_data_path, "collapsed_l2fc.csv"), schema_path)
 cell_line_cols <- c("depmap_id","lua","pool_id")
 sig_cols <- c("cell_set","pert_name","pert_dose","pert_dose_unit","day")
 
@@ -620,7 +626,7 @@ for(dataset in c("Expression", "CRISPR", "Mutation")) {
 ##### If you have AUCs, here is an example of how to calculate univariate biomarkers using them.
 ```{r example univariate biomarker with aucs, echo = T, eval = T}
 # Biomarkers using AUC from DRC output ----
-drc_table <- data.table::fread(file.path(local_test_data_path, "drc_table.csv"))
+drc_table <- read_data_table(file.path(local_test_data_path, "drc_table.csv"), schema_path)
 dr_column <- "auc"
 
 trt_cols_auc <- unique(c("day", sig_cols[grepl("pert", sig_cols) & !grepl("dose", sig_cols)]))
@@ -668,7 +674,7 @@ source(file.path(local_sushi_path, "scripts", "biomarker", "biomarker_functions.
 
 # Set up inputs ----
 depmap_file_path <- file.path(local_test_data_path, "prism_biomarker_public_0625.h5")
-collapsed_l2fc <- data.table::fread(file.path(local_test_data_path, "collapsed_l2fc.csv"))
+collapsed_l2fc <- read_data_table(file.path(local_test_data_path, "collapsed_l2fc.csv"), schema_path)
 cell_line_cols <- c("depmap_id", "lua", "pool_id")
 sig_cols <- c("cell_set", "pert_name", "pert_dose", "pert_dose_unit", "day")
 W = NULL # confounding matrix
@@ -700,7 +706,7 @@ biomarkers %>% arrange(., -RF.imp.mean) %>% head()
 ##### Here is an example of how to calculate multivariate biomarkers with AUCs
 
 ```{r example multivariate biomarker with aucs, echo = T, eval = T}
-drc_table <- data.table::fread(file.path(local_test_data_path, "drc_table.csv"))
+drc_table <- read_data_table(file.path(local_test_data_path, "drc_table.csv"), schema_path)
 dr_column <- "log2_auc"
 
 trt_cols_auc <- unique(c("day", sig_cols[grepl("pert", sig_cols) & !grepl("dose", sig_cols)]))

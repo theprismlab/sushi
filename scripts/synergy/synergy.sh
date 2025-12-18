@@ -36,6 +36,7 @@ args=(
 --synergy_l2fc_col "$SYNERGY_L2FC_COL"
 --n_samples "$N_SAMPLES"
 --negcon_type "$CTL_TYPES"
+--output_file "${SYNERGY_FILE}"
 --out "$BUILD_DIR"
 )
 
