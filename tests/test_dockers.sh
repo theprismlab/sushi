@@ -8,7 +8,7 @@
 DOCKER_TAG="develop"
 
 ##### fastq2readcounts ###
-#docker run -it -v $PWD/assets/:/data prismcmap/sushi:$DOCKER_TAG fastq2readcount \
+#docker run -it -v $PWD/assets/:/data prismtheprismlab/sushi:$DOCKER_TAG fastq2readcount \
 #    --fastq /data/fastq/ \
 #    --out /data/out \
 #    -i1 _I1_ -i2 _I2_ -b _R1_
@@ -26,7 +26,7 @@ DOCKER_TAG="develop"
 
 #### seq_to_mts ###
 aws s3 sync s3://macchiato.clue.io/builds/EPS001_reprocessed2/build/ $PWD/assets/build/
-docker run -it -v $PWD/assets/:/data prismcmap/sushi:$DOCKER_TAG seq_to_mts \
+docker run -it -v $PWD/assets/:/data prismtheprismlab/sushi:$DOCKER_TAG seq_to_mts \
     --build_path /data/build/ \
     --out /data/build/s3/ \
     --build_name EPS001

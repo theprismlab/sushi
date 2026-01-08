@@ -65,7 +65,7 @@ knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
 # TO DO: Please update both paths below before running this markdown!
 # ==============================
 # Path to local copy of the Sushi repository
-local_sushi_path = "~/GitHub/cmap/sushi"
+local_sushi_path = "~/GitHub/theprismlab/sushi"
 # Path to local copy of the vignette data
 local_test_data_path = "~/Downloads/vignette_test_data"
 # ==============================
@@ -88,7 +88,7 @@ schema_path = file.path(local_sushi_path, "sushilib", "sushi_io", "schema.yml")
 ![](images/sushi_workflow.png)
 
 # Getting started with Sushi
-**Sushi** is the PRISM pipeline designed to process raw barcode counts from sequencing experiments. The sushi pipeline github repository can be found at <https://github.com/cmap/sushi/tree/main>
+**Sushi** is the PRISM pipeline designed to process raw barcode counts from sequencing experiments. The sushi pipeline github repository can be found at <https://github.com/theprismlab/sushi/tree/main>
 It follows a linear structure, with each step implemented as a separate module. Each module includes: (1) a Bash script to launch the module, (2) an R setup script containing the necessary parameters and inputs for the module, and (3) a core R script that defines the module’s function(s). All three scripts are contained in their corresponding folder under the `sushi/scripts/` directory. Common utility functions used across modules are defined in the `sushi/scripts/utils/` folder. This vignette is located in the `sushi/vignette/` folder.
 
 This vignette uses data from screening encorafenib in an MTS format screen that can be downloaded https://assets.clue.io/vignette_test_data/vignette_test_data.zip
