@@ -41,10 +41,6 @@ RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
     && /opt/venv/bin/pip install google-cloud-bigquery pyfarmhash pandas requests boto3 polars pyyaml
 
-# 3. Install local Python tools
-COPY scripts/utils/prism_tools ./prism_tools
-RUN /opt/venv/bin/pip install -e prism_tools
-
 # 4. Make the virtual environment's python/pip the default
 ENV PATH="/opt/venv/bin:${PATH}"
 
