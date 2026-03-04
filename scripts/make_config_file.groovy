@@ -103,6 +103,7 @@ pipeline {
           sectionHeaderStyle: sectionHeaderStyleBlue
         )
         booleanParam(name: 'CONVERT_SUSHI', defaultValue: false, description: 'Convert output column headers to format for MTS pipeline and upload to s3.')
+        booleanParam(name: 'TEST_DATASET', defaultValue: false, description: 'Upload to test S3 bucket (test-macchiato.clue.io) instead of production.')
 
         separator(
           name: "analytics_modules",
@@ -259,7 +260,7 @@ pipeline {
                 script {
                     def paramList = [
                         'SEQ_TYPE', 'API_URL', 'BUILD_DIR', 'INDEX_1', 'INDEX_2', 'BARCODE_SUFFIX', 'CREATE_CELLDB_METADATA',
-                        'BUILD_NAME', 'CONVERT_SUSHI', 'REMOVE_DATA', 'FILTER_SKIPPED_WELLS',
+                        'BUILD_NAME', 'CONVERT_SUSHI', 'TEST_DATASET', 'REMOVE_DATA', 'FILTER_SKIPPED_WELLS',
                         'COUNTS', 'SCREEN', 'GENERATE_QC_TABLES', 'POSCON_TYPE', 'DRC', 'L2FC_COLUMN','COLLAPSED_L2FC_COLUMN',
                         'SKIPPED_WELLS','FILTER_QC_FLAGS', 'PERT_PLATES', 'SCREEN_TYPE',
 
