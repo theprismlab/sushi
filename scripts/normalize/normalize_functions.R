@@ -154,10 +154,11 @@ normalize = function(X, cb_annots, id_cols, pseudocount = 0) {
   # Calculate fit intercept for valid profiles using median intercept
   fit_intercepts = X |>
     dplyr::filter(keep_cb == "Yes") |>
-    dplyr::group_by(dplyr::across(tidyselect::all_of(c(id_cols, "cb_log2_dose")))) |>
+    dplyr::filter(!is.na(cb_log2_dose)) |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(c(id_cols, "cb_log2_dose", "cb_name")))) |>
     dplyr::summarize(dose_intercept = mean(cb_log2_dose) - mean(log2_n), .groups = "drop") |>
     dplyr::group_by(dplyr::across(tidyselect::all_of(id_cols))) |>
-    dplyr::summarize(cb_intercept = median(dose_intercept), .groups = "drop")
+    dplyr::summarize(cb_intercept = median(dose_intercept, na.rm=TRUE), .groups = "drop")
 
   # Normalize filtered read counts and note flagged CBs
   normalized = dplyr::inner_join(X, fit_intercepts, by = id_cols) |>
