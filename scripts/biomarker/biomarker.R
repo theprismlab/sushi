@@ -33,6 +33,8 @@ parser$add_argument("--lfc_biomarker", default="true", help="Whether to calculat
 parser$add_argument("--auc_biomarker", default="true", help="Whether to calculate auc biomarkers")
 parser$add_argument("--synergy_biomarker", default = "false",
                     help = "Toggle to calculate biomarkers using synergy scores.")
+parser$add_argument("--seed", default="42",
+                    help="Random seed for reproducibility of multivariate biomarkers")
 
 # Paths
 parser$add_argument("--build_dir", default= "", help = "Path to the build directory")
@@ -63,6 +65,7 @@ auc_biomarker = as.logical(toupper(args$auc_biomarker))
 synergy_biomarker = as.logical(toupper(args$synergy_biomarker))
 univariate_biomarker = as.logical(toupper(args$univariate_biomarker))
 multivariate_biomarker = as.logical(toupper(args$multivariate_biomarker))
+seed = as.integer(args$seed)
 
 # Print some arguments ----
 message("INFO: univariate_biomarker is ", univariate_biomarker)
@@ -144,7 +147,8 @@ if (multivariate_biomarker) {
       output_file_name = "median_l2fc_multivariate_biomarkers.csv",
       treatment_columns = trt_cols,
       response_column = lfc_column,
-      depmap_file = bio_file
+      depmap_file = bio_file,
+      seed = seed
     )
   }
 
@@ -163,7 +167,8 @@ if (multivariate_biomarker) {
         output_file_name = "log2_auc_multivariate_biomarkers.csv",
         treatment_columns = trt_cols_auc,
         response_column = dr_column,
-        depmap_file = bio_file
+        depmap_file = bio_file,
+        seed = seed
       )
     } else {
       warning("DRC file does not exist. Skipping multivar with AUCs.")
@@ -179,7 +184,8 @@ if (multivariate_biomarker) {
         output_file_name = "synergy_multivariate_biomarkers.csv",
         treatment_columns = trt_cols,
         response_column = synergy_col,
-        depmap_file = bio_file
+        depmap_file = bio_file,
+        seed = seed
       )
     } else {
       warning(paste0("Synergy file not found at ", synergy_file,

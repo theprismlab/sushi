@@ -175,7 +175,8 @@ univariate_biomarker_table <- function(Y, file,
 #' @export
 #'
 #' @examples
-random_forest <- function (X, y, k = 5, vc = 0.01, lm = 25, p0 = 0.01, folds = NULL, X.test = NULL) {
+random_forest <- function (X, y, k = 5, vc = 0.01, lm = 25, p0 = 0.01, folds = NULL, X.test = NULL, seed = NULL) {
+  if (!is.null(seed)) set.seed(seed)
   y.clean <- y[is.finite(y)]
   cl <- sample(dplyr::intersect(rownames(X), names(y.clean)))
   X.clean <- X[cl, apply(X[cl, ], 2, function(x) all(is.finite(x)))]
@@ -439,7 +440,11 @@ RF_feature_sets <- function(Y, W = NULL, file) {
 #' @export
 #'
 #' @examples
-multivariate_biomarker_table <- function(Y, W = NULL, file, k = 10) {
+multivariate_biomarker_table <- function(Y, W = NULL, file, k = 10, seed = NULL) {
+  if (!is.null(seed)) {
+    set.seed(seed)
+    message("INFO: Using seed ", seed, " for reproducibility")
+  }
   X <- RF_feature_sets(Y, W = W, file = file)
   cl <- intersect(rownames(X$X.DNA), rownames(X$X.RNA))
 
@@ -523,7 +528,8 @@ create_multivariate_biomarker_table <- function(in_path, out_path = NULL,
                                                 output_file_name = "l2fc_multivariate_biomarkers",
                                                 depmap_file,
                                                 treatment_columns = c("pert_id", "x_project_id", "pert_name", "pert_plate", "pert_dose"),
-                                                response_column = "median_l2fc", aggregate_function = median, transform_function = function(x){x}) {
+                                                response_column = "median_l2fc", aggregate_function = median, transform_function = function(x){x},
+                                                seed = NULL) {
   require(data.table)
   require(tidyverse)
   require(rlang)
@@ -558,7 +564,7 @@ create_multivariate_biomarker_table <- function(in_path, out_path = NULL,
     transform_function()
 
   # generate the biomarker table
-  multivariate_biomarker_table <- multivariate_biomarker_table(Y = M, file = depmap_file, k = 10)
+  multivariate_biomarker_table <- multivariate_biomarker_table(Y = M, file = depmap_file, k = 10, seed = seed)
 
   # Export the biomarker table -----
   print(paste0("Writing the multivariate output file to ", paste0(out_path, "/", output_file_name)))
