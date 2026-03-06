@@ -46,8 +46,8 @@ RUN pip install --upgrade pip setuptools wheel
 # 3. Install the local sushi-tools Python package and all its dependencies
 WORKDIR /app
 COPY pyproject.toml README.md ./
-COPY sushilib ./sushilib  # Copy the new, clean source directory
-RUN pip install -e .      # Install the package and all dependencies from pyproject.toml
+COPY sushilib ./sushilib
+RUN pip install -e .
 
 # 4. Copy R scripts and other project scripts into the container
 # This copies all your script folders (drc, biomarker, etc.)
@@ -56,4 +56,8 @@ COPY docker/install_packages.R /src/install_packages.R
 
 # 5. Install R dependencies
 RUN Rscript /src/install_packages.R
+
+# 6. Label with git commit for build tracking
+ARG GIT_COMMIT=unknown
+LABEL org.opencontainers.image.revision=${GIT_COMMIT}
 
