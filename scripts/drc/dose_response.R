@@ -23,6 +23,7 @@ parser$add_argument("--cap_for_viability", default = 1.5,
                                    Default is 1.5, any viability value above this value will be made equal to 1.5"))
 parser$add_argument("--build_dir", default= "", help = "Path to the build directory")
 parser$add_argument("--out_dir", default= "", help = "Path to the output directory")
+parser$add_argument("--seed", default="42", help = "Random seed for reproducibility")
 
 # Get command line options, if help option encountered p3rint help and exit
 args <- parser$parse_args()
@@ -37,6 +38,7 @@ l2fc_col= args$l2fc_col
 type_col= args$type_col
 cap_for_viability= as.numeric(args$cap_for_viability)
 build_dir = args$build_dir
+seed = as.integer(args$seed)
 
 # Pull out dose columns from sig_cols
 dose_cols = sig_cols[grepl("_dose$", sig_cols)]
@@ -80,7 +82,8 @@ for (idx in seq_along(dose_cols)) {
     treatment_cols = sig_cols[!grepl(cur_dose_col, sig_cols)],
     dose_col = cur_dose_col,
     l2fc_col = l2fc_col,
-    cap_for_viability = cap_for_viability
+    cap_for_viability = cap_for_viability,
+    seed = seed
   )
 }
 

@@ -214,7 +214,7 @@ random_forest <- function (X, y, k = 5, vc = 0.01, lm = 25, p0 = 0.01, folds = N
     if (length(features) > 0) {
       X_train <- X_train[, features, drop = F]
       rf <- ranger::ranger(y = y.clean[train], x = X_train,
-                           importance = "impurity")
+                           importance = "impurity", seed = seed)
       yhat_rf[test] <- predict(rf, data = as.data.frame(X_test[, colnames(X_train), drop = F]))$predictions
 
       if(!is.null(X.test)){
@@ -454,13 +454,13 @@ multivariate_biomarker_table <- function(Y, W = NULL, file, k = 10, seed = NULL)
     y = Y[,ix]; y = y[is.finite(y)]
     cl_ = intersect(cl, names(y))
 
-    rf_DNA <- random_forest(X$X.DNA[cl_, ], y[cl_], k = k)
-    rf_RNA <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ]), y[cl_], folds = rf_DNA$folds, k = k)
-    
+    rf_DNA <- random_forest(X$X.DNA[cl_, ], y[cl_], k = k, seed = seed)
+    rf_RNA <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ]), y[cl_], folds = rf_DNA$folds, k = k, seed = seed)
+
     cl_ = intersect(cl_, rownames(X$X.CRISPR))
-    
-    
-    rf_CRISPR <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ], X$X.CRISPR[cl_, ]), y[cl_], k = k)
+
+
+    rf_CRISPR <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ], X$X.CRISPR[cl_, ]), y[cl_], k = k, seed = seed)
 
     rf.DNA[[ix]] <- rf_DNA$model_table %>%
       dplyr::mutate(y = colnames(Y)[ix],
