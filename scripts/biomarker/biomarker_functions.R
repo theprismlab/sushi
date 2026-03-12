@@ -176,9 +176,10 @@ univariate_biomarker_table <- function(Y, file,
 #'
 #' @examples
 random_forest <- function (X, y, k = 5, vc = 0.01, lm = 25, p0 = 0.01, folds = NULL, X.test = NULL, seed = NULL) {
-  if (!is.null(seed)) set.seed(seed)
   y.clean <- y[is.finite(y)]
-  cl <- sample(dplyr::intersect(rownames(X), names(y.clean)))
+  cl <- sort(dplyr::intersect(rownames(X), names(y.clean)))  # sort for deterministic ordering
+  if (!is.null(seed)) set.seed(seed)  # set seed AFTER deterministic sort, BEFORE random ops
+  cl <- sample(cl)
   X.clean <- X[cl, apply(X[cl, ], 2, function(x) all(is.finite(x)))]
   if(is.null(folds)){
     N = floor(length(cl)/k)
@@ -446,18 +447,18 @@ multivariate_biomarker_table <- function(Y, W = NULL, file, k = 10, seed = NULL)
     message("INFO: Using seed ", seed, " for reproducibility")
   }
   X <- RF_feature_sets(Y, W = W, file = file)
-  cl <- intersect(rownames(X$X.DNA), rownames(X$X.RNA))
+  cl <- sort(intersect(rownames(X$X.DNA), rownames(X$X.RNA)))
 
   rf.DNA <- list(); rf.RNA <- list(); rf.CRISPR <- list()
   for(ix in 1:dim(Y)[2]){
 
     y = Y[,ix]; y = y[is.finite(y)]
-    cl_ = intersect(cl, names(y))
+    cl_ = sort(intersect(cl, names(y)))
 
     rf_DNA <- random_forest(X$X.DNA[cl_, ], y[cl_], k = k, seed = seed)
     rf_RNA <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ]), y[cl_], folds = rf_DNA$folds, k = k, seed = seed)
 
-    cl_ = intersect(cl_, rownames(X$X.CRISPR))
+    cl_ = sort(intersect(cl_, rownames(X$X.CRISPR)))
 
 
     rf_CRISPR <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ], X$X.CRISPR[cl_, ]), y[cl_], k = k, seed = seed)

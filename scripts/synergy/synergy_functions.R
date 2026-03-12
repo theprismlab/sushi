@@ -124,7 +124,9 @@ create_dmso_synergy_hdf5 = function(dmso_l2fc, group_name_cols, path,
     resampled_l2fc = median_resample(x = subset$l2fc, n_samples = resample_n, size = size,
                                      replace = replace, seed = seed)
     mock_values = data.table(mock1 = resampled_l2fc)
+    set.seed(seed + 1L)
     mock_values[, mock2 := sample(mock1, size = resample_n, replace = TRUE)]
+    set.seed(seed + 2L)
     mock_values[, mock3 := sample(mock1, size = resample_n, replace = TRUE)]
 
     # Calculate synergy - function occurs in place
