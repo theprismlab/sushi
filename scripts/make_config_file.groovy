@@ -90,6 +90,7 @@ pipeline {
           separatorStyle: separatorStyleCss,
           sectionHeaderStyle: sectionHeaderStyleBlue
         )
+        booleanParam(name: 'GENERATE_WELL_METRICS', defaultValue: true, description: 'Generate well quality metrics.')
         booleanParam(name: 'GENERATE_QC_TABLES', defaultValue: true, description: 'Generate MTS style QC tables')
         booleanParam(name: 'GENERATE_QC_TABLES_2', defaultValue: false, description: 'Generate QC tables post-lfc. Only check this if you are computing log fold changes.')
         booleanParam(name: 'QC_IMAGES', defaultValue: false, description: 'Check this to trigger the QC images job.')
@@ -408,6 +409,9 @@ pipeline {
                         }
                         if (params.CBNORMALIZE) {
                             scriptsToRun.add('normalize/normalize.sh')
+                        }
+                        if (params.GENERATE_WELL_METRICS) {
+                            scriptsToRun.add('well_metrics/well_metrics.sh')
                         }
                         if (params.GENERATE_QC_TABLES) {
                             scriptsToRun.add('qc_tables/qc_tables.sh')
