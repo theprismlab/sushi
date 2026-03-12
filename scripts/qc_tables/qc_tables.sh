@@ -24,34 +24,19 @@ enforce_abs_path() {
 }
 
 enforce_abs_path NORMALIZED_COUNTS
-enforce_abs_path ANNOTATED_COUNTS
-enforce_abs_path CELL_SET_AND_POOL_META
-enforce_abs_path FILTERED_COUNTS
-enforce_abs_path UNKNOWN_BARCODE_COUNTS
-enforce_abs_path QC_PARAMS
 enforce_abs_path SAMPLE_META
-enforce_abs_path CELL_LINE_META
-enforce_abs_path PRISM_BARCODE_COUNTS
+enforce_abs_path QC_PARAMS
 
 args=(
---normalized_counts "$NORMALIZED_COUNTS"
---annotated_counts "$ANNOTATED_COUNTS"
---filtered_counts "$FILTERED_COUNTS"
---sample_meta "$SAMPLE_META"
---negcon_type "$CTL_TYPES"
---poscon_type "$POSCON_TYPE"
---cell_set_and_pool_meta "$CELL_SET_AND_POOL_META"
---out "$BUILD_DIR"
---id_cols "$ID_COLS"
---cell_line_cols "$CELL_LINE_COLS"
---sig_cols "$SIG_COLS"
---count_threshold "$COUNT_THRESHOLD"
---control_barcode_meta "$BUILD_DIR/CB_meta.csv"
---unknown_barcode_counts "$UNKNOWN_BARCODE_COUNTS"
---filter_qc_flags "$FILTER_QC_FLAGS"
---qc_params "$QC_PARAMS"
---cell_line_meta "$CELL_LINE_META"
---prism_barcode_counts "$PRISM_BARCODE_COUNTS"
+--normalized_counts "${NORMALIZED_COUNTS}"
+--sample_meta "${SAMPLE_META}"
+--qc_params "${QC_PARAMS}"
+--cell_line_cols "${CELL_LINE_COLS}"
+--sig_cols "${SIG_COLS}"
+--pseudocount "${PSEUDOCOUNT}"
+--negcon_type "${CTL_TYPES}"
+--poscon_type "${POSCON_TYPE}"
+--out "${BUILD_DIR}"
 )
 
 echo Rscript qc_tables/qc_tables.R "${args[@]}"
