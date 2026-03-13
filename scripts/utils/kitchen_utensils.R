@@ -179,6 +179,27 @@ read_data_table <- function(csv_path, schema_path = NULL, nrows = Inf) {
   return(dt)
 }
 
+#' Load in QC thresholds in a json
+#'
+#' Reads in a json file and converts its parameters into numerics
+#'
+#' @param json_file_path Path to a json file.
+#' @import jsonlite
+load_thresholds_from_json <- function(json_file_path) {
+  # Load required package
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("Package 'jsonlite' is required but not installed.")
+  }
+
+  # Read JSON file into a list
+  params <- jsonlite::fromJSON(json_file_path)
+
+  # Convert each value to numeric
+  numeric_params <- lapply(params, as.numeric)
+
+  return(numeric_params)
+}
+
 #' validate_columns_entries
 #'
 #' This function checks that for a list of columns, all entries are filled in.
