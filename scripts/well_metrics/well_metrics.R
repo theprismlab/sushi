@@ -83,7 +83,7 @@ if (!dir.exists(file.path(args$out, "qc_tables"))) {
   dir.create(file.path(args$out, "qc_tables"))
 }
 
-# ID COLS QCs
+# ID COLS QC ----
 message("Calculating id_cols level QCs ...")
 id_cols_table = generate_id_cols_table(
   unknown_counts = unknown_counts,
@@ -123,7 +123,7 @@ print(paste0("Writing out id_cols_qc_flags to ", id_cols_qc_flags_outpath))
 write_out_table(table = id_cols_qc_flags_table, path = id_cols_qc_flags_outpath)
 check_file_exists(id_cols_qc_flags_outpath)
 
-# POOL WELL QCs
+# POOL WELL QCs ----
 message("Calculating pool_well level QCs ...")
 pool_well_table = generate_pool_well_qc_table(
   normalized_counts = id_cols_filt_normalized_counts,
@@ -150,7 +150,7 @@ message("Writing out pool_well_qc_flags to ", pool_well_qc_flags_outpath)
 write_out_table(table = pool_well_qc_flags_table, path = pool_well_qc_flags_outpath)
 check_file_exists(pool_well_qc_flags_outpath)
 
-# Write out filtered normalized counts
+# Write out filtered normalized counts ----
 if (filter_qc_flags == TRUE) {
   # Filter out wells with QC flags
   message("Filtering out wells with QC flags from normalized counts ...")
@@ -167,11 +167,7 @@ if (filter_qc_flags == TRUE) {
   message("Normalized counts NOT filtered for qc_flags.")
 }
 
-# Other things to do
-# - variance decomp
-# - contamination
-
-# Compute variance decomposition table
+# VARIANCE DECOMPOSITION ----
 print("Computing variance decomposition table...")
 variance_decomp <- compute_variance_decomposition(
   normalized_counts = normalized_counts,
@@ -186,7 +182,7 @@ write_out_table(table = variance_decomp, path = variance_decomp_outpath)
 check_file_exists(variance_decomp_outpath)
 
 
-# Compute contamination tables
+# CONTAMINATION TABLES ----
 contamination_tables <- compute_contamination_qc_tables(
   prism_barcode_counts = prism_barcode_counts,
   unknown_barcode_counts = unknown_counts,
