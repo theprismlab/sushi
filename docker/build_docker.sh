@@ -10,6 +10,7 @@ ls -1
 podman build \
   --pull \
   --no-cache \
+  --build-arg GIT_COMMIT="$(git rev-parse HEAD)" \
   -f docker/Dockerfile \
   -t sushi-podman:latest \
   .

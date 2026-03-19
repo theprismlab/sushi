@@ -52,3 +52,7 @@ COPY docker/install_packages.R /src/install_packages.R
 
 # 6. Install R dependencies
 RUN Rscript /src/install_packages.R
+
+# Label with git commit for build tracking
+ARG GIT_COMMIT=unknown
+LABEL org.opencontainers.image.revision=${GIT_COMMIT}
