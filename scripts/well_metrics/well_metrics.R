@@ -114,12 +114,12 @@ id_cols_filt_normalized_counts = dplyr::anti_join(normalized_counts, id_cols_qc_
 
 # Write out id col qc and flags
 id_cols_outpath = file.path(args$out, "qc_tables", "id_cols_qc_table.csv")
-print(paste0("Writing out id_cols_qc_table to ", id_cols_outpath))
+message("Writing out id_cols_qc_table to ", id_cols_outpath)
 write_out_table(table = id_cols_table, path = id_cols_outpath)
 check_file_exists(id_cols_outpath)
 
 id_cols_qc_flags_outpath = file.path(args$out, "qc_tables", "id_cols_qc_flags.csv")
-print(paste0("Writing out id_cols_qc_flags to ", id_cols_qc_flags_outpath))
+message("Writing out id_cols_qc_flags to ", id_cols_qc_flags_outpath)
 write_out_table(table = id_cols_qc_flags_table, path = id_cols_qc_flags_outpath)
 check_file_exists(id_cols_qc_flags_outpath)
 
@@ -161,7 +161,7 @@ if (filter_qc_flags == TRUE) {
 
   filt_norm_counts_outpath = file.path(args$out, "normalized_counts.csv")
   message("Writing filtered normalized_counts to ", filt_norm_counts_outpath)
-  write_out_table(table = final_filtered_normalized_counts, path = filt_norm_counts_outpath)
+  write_out_table(table = pool_well_filt_norm_counts, path = filt_norm_counts_outpath)
   check_file_exists(filt_norm_counts_outpath)
 } else {
   message("Normalized counts NOT filtered for qc_flags.")
@@ -180,7 +180,6 @@ variance_decomp_outpath <- file.path(args$out, "qc_tables", "variance_decomposit
 message("Writing out variance_decomposition to ", variance_decomp_outpath)
 write_out_table(table = variance_decomp, path = variance_decomp_outpath)
 check_file_exists(variance_decomp_outpath)
-
 
 # CONTAMINATION TABLES ----
 contamination_tables <- compute_contamination_qc_tables(
