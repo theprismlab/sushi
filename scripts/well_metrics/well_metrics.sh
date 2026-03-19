@@ -38,7 +38,7 @@ args=(
 --annotated_counts "${ANNOTATED_COUNTS}"
 --normalized_counts "${NORMALIZED_COUNTS}"
 --cell_set_and_pool_meta "${CELL_SET_AND_POOL_META}"
---control_barcode_meta "${BUILD_DIR}/CB_meta.csv"
+--cb_meta "${BUILD_DIR}/CB_meta.csv"
 --cell_line_meta "${CELL_LINE_META}"
 --sample_meta "${SAMPLE_META}"
 --qc_params "${QC_PARAMS}"
