@@ -32,23 +32,22 @@ compute_cb_cl_ratio_plate = function(read_stats, cb_metrics,
   return(cb_cl_ratio_plate)
 }
 
-# TABLE GENERATION FUNCTION ----------
-
-
-# CELL LINE BY PLATE (PCR_PLATE, CELL LINE) ----------
-
 #' Compute error rate
 #'
 #' This function calculates the error rate using receiver operating characteristic (ROC) curve data.
 #' It quantifies the overlap or misclassification between positive controls and negative controls
 #' within grouped data, providing a measure of assay quality. A high error rate indicates large overlap.
 #'
-#' @param df A data frame containing data for analysis, including metrics and annotations for negative and positive controls.
-#' @param metric A string specifying the column name of the metric to use for computing error rate (default: `"log2_normalized_n"`).
+#' @param df A data frame containing data for analysis, including metrics and annotations for
+#' negative and positive controls.
+#' @param metric A string specifying the column name of the metric to use for computing error rate
+#' (default: `"log2_normalized_n"`).
 #' @param group_cols A character vector specifying the grouping columns (default: `c("depmap_id", "pcr_plate")`).
-#' @param negcon A string specifying the `pert_type` value that identifies negative control samples (default: `"ctl_vehicle"`).
+#' @param negcon A string specifying the `pert_type` value that identifies negative control samples
+#' (default: `"ctl_vehicle"`).
 #'   These represent baseline or no-treatment conditions and are expected to have lower values.
-#' @param poscon A string specifying the `pert_type` value that identifies positive control samples (default: `"trt_poscon"`).
+#' @param poscon A string specifying the `pert_type` value that identifies positive control samples
+#' (default: `"trt_poscon"`).
 #'   These represent treated conditions and are expected to have higher values.
 #'
 #' @return A data frame with one row per group and a column `error_rate` containing the computed error rate.
@@ -102,7 +101,8 @@ compute_error_rate <- function(df, metric = "log2_normalized_n", group_cols = c(
 #' based on the MAD values for the negative controls.
 #'
 #' @param df A data frame containing normalized and raw data along with annotations for control types.
-#' @param group_cols A character vector specifying the columns to group by, along with `pert_type` (default: `c("depmap_id", "pcr_plate")`).
+#' @param group_cols A character vector specifying the columns to group by, along with `pert_type`
+#' (default: `c("depmap_id", "pcr_plate")`).
 #' @param negcon A string specifying the `pert_type` value for negative controls (default: `"ctl_vehicle"`).
 #' @param poscon A string specifying the `pert_type` value for positive controls (default: `"trt_poscon"`).
 #'
@@ -139,7 +139,8 @@ compute_ctl_medians_and_mad <- function(df, group_cols,
 
 #' Compute cell line fractions
 #'
-#' This function computes the total reads and fraction of reads contributed by each cell line within groups defined by specified columns.
+#' This function computes the total reads and fraction of reads contributed by each cell line within groups
+#' defined by specified columns.
 #'
 #' @param df A data frame containing read data for cell lines, including a metric for read counts.
 #' @param metric A string specifying the column name of the metric to use for calculations (default: `"n"`).
