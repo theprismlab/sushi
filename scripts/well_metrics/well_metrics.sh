@@ -51,5 +51,5 @@ args=(
 --out "${BUILD_DIR}"
 )
 
-echo Rscript qc_tables/qc_tables.R "${args[@]}"
-Rscript qc_tables/qc_tables.R "${args[@]}"
+echo Rscript well_metrics/well_metrics.R "${args[@]}"
+Rscript well_metrics/well_metrics.R "${args[@]}"
