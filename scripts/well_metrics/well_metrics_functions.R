@@ -40,9 +40,9 @@ compute_read_stats = function(unknown_counts, annotated_counts,
 
   # Calculate number of expected cell lines per well
   num_expected_lines = annotated_counts[expected_read == TRUE & is.na(cb_name)] |>
+    dplyr::distinct(across(all_of(cell_line_cols))) |>
     dplyr::group_by(cell_set) |>
-    dplyr::summarise(n_expected_lines = dplyr::n_distinct(across(all_of(cell_line_cols)), na.rm = TRUE),
-                     .groups = "drop")
+    dplyr::summarise(n_expected_lines = dplyr::n(), .groups = "drop")
 
   # Bind tables and calculate stats
   plate_well = dplyr::bind_rows(annotated_counts, unknown_counts) |>
