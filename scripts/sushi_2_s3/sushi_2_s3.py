@@ -17,7 +17,6 @@ import json
 import boto3
 from botocore.exceptions import NoCredentialsError
 import logging
-from sushilib.prism_tools import SushiBuild
 import polars as pl
 
 logger = logging.getLogger("sushi_2_s3")

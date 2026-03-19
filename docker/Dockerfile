@@ -41,10 +41,6 @@ RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
     && /opt/venv/bin/pip install google-cloud-bigquery pyfarmhash pandas requests boto3 polars pyyaml
 
-# 3. Install local Python tools
-COPY scripts/utils/prism_tools ./prism_tools
-RUN /opt/venv/bin/pip install -e prism_tools
-
 # 4. Make the virtual environment's python/pip the default
 ENV PATH="/opt/venv/bin:${PATH}"
 
@@ -56,3 +52,7 @@ COPY docker/install_packages.R /src/install_packages.R
 
 # 6. Install R dependencies
 RUN Rscript /src/install_packages.R
+
+# Label with git commit for build tracking
+ARG GIT_COMMIT=unknown
+LABEL org.opencontainers.image.revision=${GIT_COMMIT}

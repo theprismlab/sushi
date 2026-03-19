@@ -175,9 +175,11 @@ univariate_biomarker_table <- function(Y, file,
 #' @export
 #'
 #' @examples
-random_forest <- function (X, y, k = 5, vc = 0.01, lm = 25, p0 = 0.01, folds = NULL, X.test = NULL) {
+random_forest <- function (X, y, k = 5, vc = 0.01, lm = 25, p0 = 0.01, folds = NULL, X.test = NULL, seed = NULL) {
   y.clean <- y[is.finite(y)]
-  cl <- sample(dplyr::intersect(rownames(X), names(y.clean)))
+  cl <- sort(dplyr::intersect(rownames(X), names(y.clean)))  # sort for deterministic ordering
+  if (!is.null(seed)) set.seed(seed)  # set seed AFTER deterministic sort, BEFORE random ops
+  cl <- sample(cl)
   X.clean <- X[cl, apply(X[cl, ], 2, function(x) all(is.finite(x)))]
   if(is.null(folds)){
     N = floor(length(cl)/k)
@@ -213,7 +215,7 @@ random_forest <- function (X, y, k = 5, vc = 0.01, lm = 25, p0 = 0.01, folds = N
     if (length(features) > 0) {
       X_train <- X_train[, features, drop = F]
       rf <- ranger::ranger(y = y.clean[train], x = X_train,
-                           importance = "impurity")
+                           importance = "impurity", seed = seed)
       yhat_rf[test] <- predict(rf, data = as.data.frame(X_test[, colnames(X_train), drop = F]))$predictions
 
       if(!is.null(X.test)){
@@ -439,23 +441,27 @@ RF_feature_sets <- function(Y, W = NULL, file) {
 #' @export
 #'
 #' @examples
-multivariate_biomarker_table <- function(Y, W = NULL, file, k = 10) {
+multivariate_biomarker_table <- function(Y, W = NULL, file, k = 10, seed = NULL) {
+  if (!is.null(seed)) {
+    set.seed(seed)
+    message("INFO: Using seed ", seed, " for reproducibility")
+  }
   X <- RF_feature_sets(Y, W = W, file = file)
-  cl <- intersect(rownames(X$X.DNA), rownames(X$X.RNA))
+  cl <- sort(intersect(rownames(X$X.DNA), rownames(X$X.RNA)))
 
   rf.DNA <- list(); rf.RNA <- list(); rf.CRISPR <- list()
   for(ix in 1:dim(Y)[2]){
 
     y = Y[,ix]; y = y[is.finite(y)]
-    cl_ = intersect(cl, names(y))
+    cl_ = sort(intersect(cl, names(y)))
 
-    rf_DNA <- random_forest(X$X.DNA[cl_, ], y[cl_], k = k)
-    rf_RNA <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ]), y[cl_], folds = rf_DNA$folds, k = k)
-    
-    cl_ = intersect(cl_, rownames(X$X.CRISPR))
-    
-    
-    rf_CRISPR <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ], X$X.CRISPR[cl_, ]), y[cl_], k = k)
+    rf_DNA <- random_forest(X$X.DNA[cl_, ], y[cl_], k = k, seed = seed)
+    rf_RNA <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ]), y[cl_], folds = rf_DNA$folds, k = k, seed = seed)
+
+    cl_ = sort(intersect(cl_, rownames(X$X.CRISPR)))
+
+
+    rf_CRISPR <- random_forest(cbind(X$X.DNA[cl_, ], X$X.RNA[cl_, ], X$X.CRISPR[cl_, ]), y[cl_], k = k, seed = seed)
 
     rf.DNA[[ix]] <- rf_DNA$model_table %>%
       dplyr::mutate(y = colnames(Y)[ix],
@@ -523,7 +529,8 @@ create_multivariate_biomarker_table <- function(in_path, out_path = NULL,
                                                 output_file_name = "l2fc_multivariate_biomarkers",
                                                 depmap_file,
                                                 treatment_columns = c("pert_id", "x_project_id", "pert_name", "pert_plate", "pert_dose"),
-                                                response_column = "median_l2fc", aggregate_function = median, transform_function = function(x){x}) {
+                                                response_column = "median_l2fc", aggregate_function = median, transform_function = function(x){x},
+                                                seed = NULL) {
   require(data.table)
   require(tidyverse)
   require(rlang)
@@ -558,7 +565,7 @@ create_multivariate_biomarker_table <- function(in_path, out_path = NULL,
     transform_function()
 
   # generate the biomarker table
-  multivariate_biomarker_table <- multivariate_biomarker_table(Y = M, file = depmap_file, k = 10)
+  multivariate_biomarker_table <- multivariate_biomarker_table(Y = M, file = depmap_file, k = 10, seed = seed)
 
   # Export the biomarker table -----
   print(paste0("Writing the multivariate output file to ", paste0(out_path, "/", output_file_name)))

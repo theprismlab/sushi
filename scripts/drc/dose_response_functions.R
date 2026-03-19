@@ -88,11 +88,14 @@ compute_mse_mad <- function(FC, dose,  UL, LL,  slope, inflection) {
 #' @export
 #'
 #' @examples
-get_best_fit <- function(FC, dose, UL_low=0.8, UL_up=1.01, slope_decreasing=TRUE) {
+get_best_fit <- function(FC, dose, UL_low=0.8, UL_up=1.01, slope_decreasing=TRUE, seed=42) {
   require(dr4pl)
   require(drc)
   require(tidyverse)
   require(magrittr)
+
+  # Set seed for reproducibility of stochastic optimization
+  set.seed(seed)
 
 
   # Fits a number of alternate models  to the DRC and chooses the best fit.
@@ -307,7 +310,7 @@ create_drc_table <- function(LFC, screen_type,
                              cell_line_cols = c("depmap_id", "cell_set", "pool_id"),
                              treatment_cols = c("pert_id", "x_project_id", "pert_name", "pert_plate"),
                              dose_col = "pert_dose", l2fc_col = "median_l2fc", type_column = "pert_type",
-                             cap_for_viability = 1.5) {
+                             cap_for_viability = 1.5, seed = 42) {
   require(data.table)
   require(tidyverse)
   require(rlang)
@@ -355,10 +358,10 @@ create_drc_table <- function(LFC, screen_type,
       dplyr::summarise(if (dplyr::first(is_combination)) {
         # For combinations, use expanded fitting parameters
         get_best_fit(FC = pmin(2^l2fc_, cap_for_viability), dose = dose_,
-                     UL_low = 0, UL_up = 1.01, slope_decreasing = FALSE)
+                     UL_low = 0, UL_up = 1.01, slope_decreasing = FALSE, seed = seed)
       } else {
         # For non combinations, use default fitting parameters
-        get_best_fit(FC = pmin(2^l2fc_, cap_for_viability), dose = dose_)
+        get_best_fit(FC = pmin(2^l2fc_, cap_for_viability), dose = dose_, seed = seed)
       }) %>%
       dplyr::ungroup()
   } else if (screen_type %in% c("MTS_SEQ", "EPS_SEQ", "APS_SEQ")) {
@@ -367,7 +370,7 @@ create_drc_table <- function(LFC, screen_type,
       dplyr::group_by(across(all_of(c(cell_line_cols, treatment_cols)))) %>%
       dplyr::filter(length(unique(dose_)) > 4) %>%
       dplyr::summarise({
-        get_best_fit(FC = pmin(2^l2fc_, cap_for_viability), dose = dose_)
+        get_best_fit(FC = pmin(2^l2fc_, cap_for_viability), dose = dose_, seed = seed)
       }) %>%
       dplyr::ungroup()
   } else {
