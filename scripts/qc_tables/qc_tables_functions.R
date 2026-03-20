@@ -5,33 +5,6 @@ library(magrittr)
 library(PRROC)
 library(dplyr)
 
-#' Calculate CB CL ratio of a plate
-#'
-#' This function calculates the cb cl ratio of a PCR plate. This takes in a read_stats df,
-#' a cb_metrics df, and various thresholds.
-#'
-#' @param read_stats A dataframe with pcr_well level stats.
-#' @param cb_metrics A dataframe with control barcode stats.
-#' @param expected_reads_threshold A float
-#' @param cb_threshold A integer indicating low control barcode reads.
-#' @param cb_spearman_threshold A float indicating the Spearman correlation threshold.
-#' @param cb_mae_threshold A integer indicating MAE threshold.
-#' @return A data frame with CB CL ratio.
-compute_cb_cl_ratio_plate = function(read_stats, cb_metrics,
-                                     expected_reads_threshold = 0.8,
-                                     cb_threshold = 40,
-                                     cb_spearman_threshold = 0.8,
-                                     cb_mae_threshold = 1) {
-  cb_cl_ratio_plate = read_stats |>
-    dplyr::left_join(cb_metrics, by = c("pcr_plate", "pcr_well"), suffix = c("", ".y")) %>%
-    dplyr::filter(median_cb_reads > cb_threshold,
-                  fraction_expected_reads > expected_reads_threshold,
-                  cb_spearman > cb_spearman_threshold & cb_mae < cb_mae_threshold) %>%
-    dplyr::group_by(pcr_plate, pert_type) %>%
-    dplyr::summarise(cb_cl_ratio_plate = median(cb_cl_ratio_well, na.rm = TRUE), .groups = "drop")
-  return(cb_cl_ratio_plate)
-}
-
 #' Compute error rate
 #'
 #' This function calculates the error rate using receiver operating characteristic (ROC) curve data.
@@ -137,33 +110,6 @@ compute_ctl_medians_and_mad <- function(df, group_cols,
   return(result)
 }
 
-#' Compute cell line fractions
-#'
-#' This function computes the total reads and fraction of reads contributed by each cell line within groups
-#' defined by specified columns.
-#'
-#' @param df A data frame containing read data for cell lines, including a metric for read counts.
-#' @param metric A string specifying the column name of the metric to use for calculations (default: `"n"`).
-#' @param grouping_cols A character vector specifying the columns to group by (default: `c("pcr_plate", "depmap_id")`).
-#'
-#' @return A data frame with the following additional columns for each group:
-#' - `total_reads`: The total reads per group.
-#' - `fraction_of_reads`: The fraction of total reads contributed by each entry.
-#'
-#' @import dplyr
-compute_cl_fractions <- function(df, metric = "n", grouping_cols = c("pcr_plate", "depmap_id", "pert_plate")) {
-  print(paste0("Computing cell line fractions for ", metric, "....."))
-  result <- df %>%
-    dplyr::group_by(across(all_of(grouping_cols))) %>%
-    dplyr::summarise(
-      total_reads = sum(.data[[metric]], na.rm = TRUE), # Total reads per group
-      fraction_of_reads = sum(.data[[metric]], na.rm = TRUE) / sum(.data[[metric]], na.rm = TRUE) # Fraction of reads for each entry
-    ) %>%
-    dplyr::ungroup() %>%
-    dplyr::select(all_of(grouping_cols), total_reads, fraction_of_reads)
-  return(result)
-}
-
 #' Compute median number of biological replicates in treatments
 #'
 #' Actions:
@@ -206,7 +152,7 @@ generate_plate_cell_table = function(normalized_counts, sample_meta,
                                      pseudocount = 20, contains_poscon = TRUE,
                                      pcr_plate_col = "pcr_plate",
                                      pert_plate_col = "pert_plate",
-                                     optional_cols = c(""),
+                                     optional_cols = c("project_code", "day"),
                                      poscon = "trt_poscon",
                                      negcon = "ctl_vehicle",
                                      nc_variability_threshold = 1, error_rate_threshold = 0.05,
@@ -243,8 +189,10 @@ generate_plate_cell_table = function(normalized_counts, sample_meta,
   message("Determining the expected number of controls on each PCR plate ...")
   n_expected_controls = sample_meta |>
     dplyr::filter(pert_type %in% c(negcon, poscon)) |>
-    dplyr::group_by(across(all_of(c(pcr_plate_col, pert_plate_col, "pert_type",
-                                    intersect(optional_cols, colnames(sample_meta)))))) |>
+    dplyr::group_by(across(all_of(c(pcr_plate_col, pert_plate_col, pert_type))),
+                    across(any_of(optional_cols))) |>
+    #across(all_of(c(pcr_plate_col, pert_plate_col, "pert_type",
+    #                              intersect(optional_cols, colnames(sample_meta)))))) |>
     dplyr::summarize(unique_bio_rep = dplyr::n(), .groups = "drop") |>
     tidyr::pivot_wider(names_from = pert_type, values_from = unique_bio_rep, names_prefix = "n_expected_")
 
