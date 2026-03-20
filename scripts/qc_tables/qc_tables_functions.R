@@ -189,7 +189,7 @@ generate_plate_cell_table = function(normalized_counts, sample_meta,
   message("Determining the expected number of controls on each PCR plate ...")
   n_expected_controls = sample_meta |>
     dplyr::filter(pert_type %in% c(negcon, poscon)) |>
-    dplyr::group_by(across(all_of(c(pcr_plate_col, pert_plate_col, pert_type))),
+    dplyr::group_by(across(all_of(c(pcr_plate_col, pert_plate_col, "pert_type"))),
                     across(any_of(optional_cols))) |>
     #across(all_of(c(pcr_plate_col, pert_plate_col, "pert_type",
     #                              intersect(optional_cols, colnames(sample_meta)))))) |>
