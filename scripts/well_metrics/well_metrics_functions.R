@@ -200,8 +200,14 @@ compute_skew = function(df, group_cols = c("pcr_plate", "pcr_well"), metric = "n
 #' @import dplyr
 generate_id_cols_table = function(unknown_counts, annotated_counts, normalized_counts, cb_meta,
                                   id_cols, cell_line_cols,
-                                  count_threshold = 40, cb_threshold = 40, pseudocount = 20,
-                                  metadata_cols = c("pert_plate", "pert_type", "cell_set")) {
+                                  metadata_cols = c("pert_plate", "pert_type", "cell_set"),
+                                  metric = "n",
+                                  pseudocount = 20,
+                                  count_threshold = 40,
+                                  expected_reads_threshold = 0.8,
+                                  cb_threshold = 40,
+                                  cb_spearman_threshold = 0.8,
+                                  cb_mae_threshold = 1) {
   # Columns to group read counts together to calculate stats - this should identify each PCR well
   message("Computing id_cols QC metric grouping over ",
           paste(id_cols, metadata_cols, collapse = ", "), "...")
@@ -209,10 +215,10 @@ generate_id_cols_table = function(unknown_counts, annotated_counts, normalized_c
   message("Calculating read count statistics...")
   read_stats = compute_read_stats(unknown_counts = unknown_counts,
                                   annotated_counts = annotated_counts,
-                                  cell_line_cols = cell_line_cols,
                                   id_cols = id_cols,
+                                  cell_line_cols = cell_line_cols,
                                   metadata_cols = metadata_cols,
-                                  metric = "n",
+                                  metric = metric,
                                   count_threshold = count_threshold)
 
   message("Calculating control barcode metrics...")
@@ -221,10 +227,14 @@ generate_id_cols_table = function(unknown_counts, annotated_counts, normalized_c
                                     pseudocount = pseudocount)
 
   message("Calculating cb_cl_ratio for each PCR plate...")
-  cb_cl_ratio_plate = compute_cb_cl_ratio_plate(read_stats, cb_metrics, cb_threshold = cb_threshold)
+  cb_cl_ratio_plate = compute_cb_cl_ratio_plate(read_stats, cb_metrics,
+                                                expected_reads_threshold = expected_reads_threshold,
+                                                cb_threshold = cb_threshold,
+                                                cb_spearman_threshold = cb_spearman_threshold,
+                                                cb_mae_threshold = cb_mae_threshold)
 
   message("Calculating read count skew...")
-  skew = compute_skew(annotated_counts, group_cols = id_cols, metric = "n")
+  skew = compute_skew(annotated_counts, group_cols = id_cols, metric = metric)
 
   message("Assembling id_cols_table...")
   id_cols_table = read_stats |>
@@ -268,7 +278,7 @@ generate_id_cols_table = function(unknown_counts, annotated_counts, normalized_c
 #' @import dplyr
 id_cols_qc_flags <- function(id_cols_table,
                              group_cols = c("pcr_plate", "pcr_well", "pert_type", "pert_plate", "cell_set"),
-                             contamination_threshold = contamination_threshold,
+                             contamination_threshold = 0.8,
                              cb_mae_threshold = 1,
                              cb_spearman_threshold = 0.8,
                              cb_cl_ratio_low_negcon = 0,
@@ -448,15 +458,14 @@ compute_contamination_qc_tables <- function(prism_barcode_counts,
                                             cell_set_and_pool_meta,
                                             cell_line_meta,
                                             cb_meta,
-                                            sample_meta) {
+                                            sample_meta,
+                                            id_cols = c("pcr_plate", "pcr_well")) {
   # --- 0. Ensure all required columns are present ---
   prism_barcode_counts_all <- prism_barcode_counts %>%
-    dplyr::left_join(sample_meta %>% select(pcr_plate, pcr_well, pert_plate),
-         by = c("pcr_plate", "pcr_well"))
+    dplyr::left_join(sample_meta %>% select(pcr_plate, pcr_well, pert_plate), by = id_cols)
 
   unknown_barcode_counts_all <- unknown_barcode_counts %>%
-      dplyr::left_join(sample_meta %>% select(pcr_plate, pcr_well, pert_plate),
-           by = c("pcr_plate", "pcr_well"))
+    dplyr::left_join(sample_meta %>% select(pcr_plate, pcr_well, pert_plate), by = id_cols)
 
   # --- 1. Create total counts df with known and unknown barcodes ---
   total_counts <- bind_rows(prism_barcode_counts_all, unknown_barcode_counts_all)
@@ -517,7 +526,8 @@ compute_contamination_qc_tables <- function(prism_barcode_counts,
     summarise(mean_fraction_reads = mean(fraction_well_reads), .groups = "drop")
 
   # --- 9. Filter the total_counts_with_read_type_annotated to include only relevant columns ---
-  total_counts_by_read_type <- total_counts_with_read_type_annotated %>% select(c("pcr_plate","pert_plate","pcr_well","forward_read_barcode","read_type","n"))
+  total_counts_by_read_type <- total_counts_with_read_type_annotated %>%
+    select(c("pcr_plate","pert_plate","pcr_well","forward_read_barcode","read_type","n"))
 
   return(list(fraction_read_type_by_well = fraction_read_type_by_well,
               fraction_read_type_by_plate = fraction_read_type_by_plate,
