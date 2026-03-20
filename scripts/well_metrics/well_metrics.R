@@ -92,8 +92,11 @@ id_cols_table = generate_id_cols_table(
   cb_meta = cb_meta,
   id_cols = id_cols,
   cell_line_cols = cell_line_cols,
+  pseudocount = pseudocount,
   count_threshold = count_threshold,
-  pseudocount = pseudocount
+  cb_threshold = thresholds$well_reads_threshold,
+  cb_spearman_threshold = thresholds$cb_spearman_threshold,
+  cb_mae_threshold = thresholds$cb_mae_threshold
 )
 
 # Identify poor performing wells to drop
@@ -171,10 +174,10 @@ if (filter_qc_flags == TRUE) {
 print("Computing variance decomposition table...")
 variance_decomp <- compute_variance_decomposition(
   normalized_counts = normalized_counts,
-  metric = "n",
-  cell_line_cols = cell_line_cols,
   id_cols = id_cols,
-  negcon = negcon
+  cell_line_cols = cell_line_cols,
+  metric = "n",
+  negcon =  negcon
 )
 variance_decomp_outpath <- file.path(args$out, "qc_tables", "variance_decomposition.csv")
 message("Writing out variance_decomposition to ", variance_decomp_outpath)
@@ -188,7 +191,8 @@ contamination_tables <- compute_contamination_qc_tables(
   cell_set_and_pool_meta = cell_set_and_pool_meta,
   cell_line_meta = cell_line_meta,
   cb_meta = cb_meta,
-  sample_meta = sample_meta
+  sample_meta = sample_meta,
+  id_cols = id_cols
 )
 
 # Write out contamination tables
