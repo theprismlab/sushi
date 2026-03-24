@@ -24,12 +24,10 @@ enforce_abs_path() {
 }
 
 enforce_abs_path NORMALIZED_COUNTS
-enforce_abs_path SAMPLE_META
 enforce_abs_path QC_PARAMS
 
 args=(
 --normalized_counts "${NORMALIZED_COUNTS}"
---sample_meta "${SAMPLE_META}"
 --qc_params "${QC_PARAMS}"
 --cell_line_cols "${CELL_LINE_COLS}"
 --sig_cols "${SIG_COLS}"

@@ -134,7 +134,8 @@ compute_med_trt_bio_rep = function(df, plate_cell_line_cols, sig_cols) {
 
 #' Generate cell plate table
 #'
-#' This function generates a comprehensive QC table for cell_lines +pcr plates by computing and merging various QC metrics, including medians, MADs, error rates, log fold changes (LFC), and cell line fractions.
+#' This function generates a comprehensive QC table for cell_lines +pcr plates by computing and
+#' merging various QC metrics, including medians, MADs, error rates, and log fold changes (LFC).
 #'
 #' @param normalized_counts A data frame containing normalized read counts and associated metadata.
 #' @param filtered_counts A data frame containing filtered read counts for the same dataset.
@@ -147,8 +148,7 @@ compute_med_trt_bio_rep = function(df, plate_cell_line_cols, sig_cols) {
 #' - Fractions of reads contributed by each cell line.
 #'
 #' @import dplyr
-generate_plate_cell_table = function(normalized_counts, sample_meta,
-                                     cell_line_cols, sig_cols,
+generate_plate_cell_table = function(normalized_counts, cell_line_cols, sig_cols,
                                      pseudocount = 20, contains_poscon = TRUE,
                                      pcr_plate_col = "pcr_plate",
                                      pert_plate_col = "pert_plate",
@@ -175,6 +175,10 @@ generate_plate_cell_table = function(normalized_counts, sample_meta,
     stop("Nomalized counts is missing some columns required for the QC tables module.")
   }
 
+  # Pull out optional PCR plate level columns
+  optional_meta = normalized_counts |>
+    dplyr::distinct(across(all_of(c(pcr_plate_col, pert_plate_col))), across(any_of(optional_cols)))
+
   # Compute medians and MADs
   message("Calculating medians and MADs ...")
   cell_line_meds_mads = compute_ctl_medians_and_mad(
@@ -184,17 +188,6 @@ generate_plate_cell_table = function(normalized_counts, sample_meta,
     poscon = poscon,
     pseudocount = pseudocount
   )
-
-  # Compute number of expected control wells from the sample meta
-  message("Determining the expected number of controls on each PCR plate ...")
-  n_expected_controls = sample_meta |>
-    dplyr::filter(pert_type %in% c(negcon, poscon)) |>
-    dplyr::group_by(across(all_of(c(pcr_plate_col, pert_plate_col, "pert_type"))),
-                    across(any_of(optional_cols))) |>
-    #across(all_of(c(pcr_plate_col, pert_plate_col, "pert_type",
-    #                              intersect(optional_cols, colnames(sample_meta)))))) |>
-    dplyr::summarize(unique_bio_rep = dplyr::n(), .groups = "drop") |>
-    tidyr::pivot_wider(names_from = pert_type, values_from = unique_bio_rep, names_prefix = "n_expected_")
 
   # Calc median number of bio reps across the treatments for each cell line + plate
   message("Computing median number of bio_reps across the treatments ...")
@@ -216,16 +209,12 @@ generate_plate_cell_table = function(normalized_counts, sample_meta,
     # Join tables together and calculate poscon l2fc
     message("Left joining tables ...")
     plate_cell_table = cell_line_meds_mads |>
-      dplyr::left_join(n_expected_controls, by = c(pcr_plate_col, pert_plate_col)) |>
+      dplyr::left_join(optional_meta, by = c(pcr_plate_col, pert_plate_col)) |>
       dplyr::left_join(med_trt_bio_reps, by = plate_cell_line_cols) |>
       dplyr::left_join(error_rates, by = plate_cell_line_cols) |>
       dplyr::mutate(lfc_trt_poscon = .data[[paste0("median_log_normalized_", poscon)]] -
                       .data[[paste0("median_log_normalized_", negcon)]],
                     viability_trt_poscon = 2^lfc_trt_poscon,
-                    fraction_expected_negcon = .data[[paste0("n_replicates_", negcon)]] /
-                      .data[[paste0("n_expected_", negcon)]],
-                    fraction_expected_poscon = .data[[paste0("n_replicates_", poscon)]] /
-                      .data[[paste0("n_expected_", poscon)]],
                     qc_pass = error_rate < error_rate_threshold &
                       .data[[paste0("viability_", poscon)]] < pc_viability_threshold &
                       .data[[paste0("median_raw_", negcon)]] > nc_raw_count_threshold &
@@ -234,11 +223,9 @@ generate_plate_cell_table = function(normalized_counts, sample_meta,
   } else {
     message("No poscon condition detected. Error rate and poscon_l2fc QCs will not be generated.")
     plate_cell_table = cell_line_meds_mads |>
-      dplyr::left_join(n_expected_controls, by = c(pcr_plate_col, pert_plate_col)) |>
+      dplyr::left_join(optional_cols, by = c(pcr_plate_col, pert_plate_col)) |>
       dplyr::left_join(med_trt_bio_reps, by = plate_cell_line_cols) |>
-      dplyr::mutate(fraction_expected_negcon = .data[[paste0("n_replicates_", negcon)]] /
-                      .data[[paste0("n_expected_", negcon)]],
-                    qc_pass = .data[[paste0("median_raw_", negcon)]] > nc_raw_count_threshold &
+      dplyr::mutate(qc_pass = .data[[paste0("median_raw_", negcon)]] > nc_raw_count_threshold &
                       .data[[paste0("mad_log_normalized_", negcon)]] < nc_variability_threshold)
   }
 

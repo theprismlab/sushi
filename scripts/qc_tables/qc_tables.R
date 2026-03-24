@@ -13,7 +13,6 @@ source("utils/kitchen_utensils.R")
 # Argument parser ----
 parser = ArgumentParser()
 parser$add_argument("--normalized_counts", default = "normalized_counts.csv", help = "normalized counts file")
-parser$add_argument("--sample_meta", default = "sample_meta.csv", help = "Sample meta file")
 parser$add_argument("--qc_params", default = "qc_params.json", help = "File containing QC parameters")
 parser$add_argument("--cell_line_cols", default = "pool_id,depmap_id,lua")
 parser$add_argument("--sig_cols", default = "")
@@ -28,8 +27,6 @@ args = parser$parse_args()
 # Read in files and set up parameters ----
 message("Reading in normalized_counts from", args$normalized_counts, "...")
 normalized_counts = read_data_table(args$normalized_counts)
-message("Reading in sample_meta from ", args$sample_meta, "...")
-sample_meta = read_data_table(args$sample_meta)
 message("Reading in qc_thresholds from ", args$qc_params, "...")
 thresholds = load_thresholds_from_json(args$qc_params)
 
@@ -46,14 +43,13 @@ pert_plate_col = args$pert_plate_col
 pseudocount = as.numeric(args$pseudocount)
 negcon = args$negcon_type
 poscon = args$poscon_type
-contains_poscon = any(sample_meta$pert_type == args$poscon_type)
+contains_poscon = any(normalized_counts$pert_type == args$poscon_type)
 
 # Filter out control barcodes from normalized counts
 normalized_counts_rm_cbc = filter_control_barcodes(normalized_counts)
 
 plate_cell_table = generate_plate_cell_table(
   normalized_counts = normalized_counts_rm_cbc,
-  sample_meta = sample_meta,
   cell_line_cols = cell_line_cols,
   sig_cols = sig_cols,
   pcr_plate_col = pcr_plate_col,
