@@ -126,9 +126,9 @@ check_file_exists(plate_cell_flags_outpath)
 # Create and write out cell line pert plate pass rate for portal ----
 message("Creating pert plate pass rate file")
 pertplate_cell_pass_rate = plate_cell_table |>
-  dplyr::distinct(across(all_of(c(cell_line_cols, pert_plate_col, "qc_pass_pert_plate",
-                                  intersect("project_code", colnames(sample_meta)))))) |>
-  dplyr::group_by(across(all_of(c(pert_plate_col, intersect("project_code", colnames(sample_meta)))))) |>
+  dplyr::distinct(across(all_of(c(cell_line_cols, pert_plate_col, "qc_pass_pert_plate"))),
+                  across(any_of(c("project_code")))) |>
+  dplyr::group_by(across(all_of(pert_plate_col)), across(any_of(c("project_code")))) |>
   dplyr::summarise(num_cl_pass = sum(qc_pass_pert_plate),
                    num_cl_failed = sum(!qc_pass_pert_plate), .groups = "drop")
 pass_rate_outpath = file.path(args$out, "qc_tables", "pertplate_cell_pass_rate.csv")
