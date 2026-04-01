@@ -166,7 +166,7 @@ if (!str_detect(cb_ladder, ".csv")) {
       cb_log10_dose = log_dose,
       cb_ladder = set
     ) %>%
-    dplyr::mutate(cb_ladder = tolower(cb_ladder)) %>%
+    #dplyr::mutate(cb_ladder = tolower(cb_ladder)) %>%
     dplyr::select(forward_read_barcode, cb_name, cb_log10_dose, cb_ladder)
   
 } else {
