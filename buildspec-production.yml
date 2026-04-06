@@ -20,7 +20,9 @@ phases:
       - echo "Logging in to ECR..."
       - aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
       - echo "=== Detecting changes ==="
+      - cd "$BENTO_DIR" && git fetch --depth=2 origin main 2>/dev/null || true
       - cd "$BENTO_DIR" && export BENTO_CHANGES=$(git diff --name-only HEAD~1 2>/dev/null || echo "ALL")
+      - cd "$SUSHI_DIR" && git fetch --depth=2 origin main 2>/dev/null || true
       - cd "$SUSHI_DIR" && export SUSHI_CHANGES=$(git diff --name-only HEAD~1 2>/dev/null || echo "ALL")
       - echo "Bento changes $BENTO_CHANGES"
       - echo "Sushi changes $SUSHI_CHANGES"
