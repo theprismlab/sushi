@@ -57,7 +57,7 @@ phases:
       - if echo "$BENTO_CHANGES" | grep -qE "^(sushi-sync-file-to-s3/|ALL)"; then export BUILD_SYNC_S3=true; fi
       - if echo "$BENTO_CHANGES" | grep -qE "^(sushi-zip-project/|ALL)"; then export BUILD_ZIP=true; fi
       - if echo "$BENTO_CHANGES" | grep -qE "^(sushi-annotate-cells/|ALL)"; then export BUILD_ANNOTATE=true; fi
-      - if [ "$SUSHI_CHANGES" != "" ]; then export BUILD_SUSHI=true; fi
+      - if echo "$SUSHI_CHANGES" | grep -qE "^(sushilib/|Dockerfile|pyproject.toml|ALL)"; then export BUILD_SUSHI=true; fi
       - if [ "$BUILD_BASE_PRISMR" = "true" ]; then export BUILD_DRC=true; export BUILD_BIOMARKER=true; export BUILD_PORTAL_PREP=true; fi
       - if [ "$BUILD_SUSHI" = "true" ]; then export BUILD_DRC=true; export BUILD_BIOMARKER=true; fi
       - echo "=== Build plan ==="
