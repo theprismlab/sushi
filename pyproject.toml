@@ -35,9 +35,9 @@ dependencies = [
 # --- CRUCIAL SECTION FOR INSTALLATION ---
 [tool.setuptools]
 # Tells setuptools that your Python package code is inside the 'sushi' directory
-packages = ["sushi"]
+packages = ["sushilib"]
 
 [tool.setuptools.package-data]
 # This ensures that schema.yaml is included when the package is installed
-sushi = ["utils/io/schema.yaml"]
+sushilib = ["utils/io/schema.yaml"]
 
