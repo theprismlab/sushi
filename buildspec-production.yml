@@ -19,13 +19,11 @@ phases:
       - echo "Sushi dir $SUSHI_DIR"
       - echo "Logging in to ECR..."
       - aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
-
       - echo "=== Detecting changes ==="
       - cd "$BENTO_DIR" && export BENTO_CHANGES=$(git diff --name-only HEAD~1 2>/dev/null || echo "ALL")
       - cd "$SUSHI_DIR" && export SUSHI_CHANGES=$(git diff --name-only HEAD~1 2>/dev/null || echo "ALL")
-      - echo "Bento changes: $BENTO_CHANGES"
-      - echo "Sushi changes: $SUSHI_CHANGES"
-
+      - echo "Bento changes $BENTO_CHANGES"
+      - echo "Sushi changes $SUSHI_CHANGES"
       - export BUILD_BASE_PRISMR=false
       - export BUILD_SUSHI=false
       - export BUILD_DRC=false
@@ -42,7 +40,6 @@ phases:
       - export BUILD_SYNC_S3=false
       - export BUILD_ZIP=false
       - export BUILD_ANNOTATE=false
-
       - if echo "$BENTO_CHANGES" | grep -qE "^(docker/|ALL)"; then export BUILD_BASE_PRISMR=true; fi
       - if echo "$BENTO_CHANGES" | grep -qE "^(sushi-drc/|ALL)"; then export BUILD_DRC=true; fi
       - if echo "$BENTO_CHANGES" | grep -qE "^(sushi-biomarker/|ALL)"; then export BUILD_BIOMARKER=true; fi
@@ -58,46 +55,33 @@ phases:
       - if echo "$BENTO_CHANGES" | grep -qE "^(sushi-sync-file-to-s3/|ALL)"; then export BUILD_SYNC_S3=true; fi
       - if echo "$BENTO_CHANGES" | grep -qE "^(sushi-zip-project/|ALL)"; then export BUILD_ZIP=true; fi
       - if echo "$BENTO_CHANGES" | grep -qE "^(sushi-annotate-cells/|ALL)"; then export BUILD_ANNOTATE=true; fi
-
       - if [ "$SUSHI_CHANGES" != "" ]; then export BUILD_SUSHI=true; fi
-
       - if [ "$BUILD_BASE_PRISMR" = "true" ]; then export BUILD_DRC=true; export BUILD_BIOMARKER=true; export BUILD_PORTAL_PREP=true; fi
-
       - if [ "$BUILD_SUSHI" = "true" ]; then export BUILD_DRC=true; export BUILD_BIOMARKER=true; fi
-
       - echo "=== Build plan ==="
-      - echo "base-prismr: $BUILD_BASE_PRISMR"
-      - echo "sushi: $BUILD_SUSHI"
-      - echo "sushi-drc: $BUILD_DRC"
-      - echo "sushi-biomarker: $BUILD_BIOMARKER"
-      - echo "sushi-portal-prep: $BUILD_PORTAL_PREP"
-      - echo "sushi-split: $BUILD_SPLIT"
+      - echo "base-prismr $BUILD_BASE_PRISMR, sushi $BUILD_SUSHI, drc $BUILD_DRC, biomarker $BUILD_BIOMARKER"
 
   build:
     commands:
       - echo "=== Building images ==="
-
-      - if [ "$BUILD_BASE_PRISMR" = "true" ]; then echo "Building base-prismr..." && cd "$BENTO_DIR/docker" && docker build -t "${ECR_REGISTRY}/base-prismr:${IMAGE_TAG}" -t "${ECR_REGISTRY}/base-prismr:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/base-prismr:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/base-prismr:${COMMIT_SHORT}"; else echo "Skipping base-prismr (no changes)"; fi
-      - if [ "$BUILD_SUSHI" = "true" ]; then echo "Building sushi..." && cd "$SUSHI_DIR" && docker build -t "${ECR_REGISTRY}/sushi:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi:${COMMIT_SHORT}"; else echo "Skipping sushi (no changes)"; fi
-
-      - if [ "$BUILD_DRC" = "true" ]; then echo "Building sushi-drc..." && cd "$BENTO_DIR/sushi-drc" && docker build --build-arg REGISTRY=${ECR_REGISTRY} --build-arg SUSHI_TAG=${IMAGE_TAG} -t "${ECR_REGISTRY}/sushi-drc:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-drc:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-drc:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-drc:${COMMIT_SHORT}"; else echo "Skipping sushi-drc (no changes)"; fi
-      - if [ "$BUILD_BIOMARKER" = "true" ]; then echo "Building sushi-biomarker..." && cd "$BENTO_DIR/sushi-biomarker" && docker build --build-arg REGISTRY=${ECR_REGISTRY} --build-arg SUSHI_TAG=${IMAGE_TAG} -t "${ECR_REGISTRY}/sushi-biomarker:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-biomarker:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-biomarker:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-biomarker:${COMMIT_SHORT}"; else echo "Skipping sushi-biomarker (no changes)"; fi
-      - if [ "$BUILD_PORTAL_PREP" = "true" ]; then echo "Building sushi-portal-prep..." && cd "$BENTO_DIR/sushi-portal-prep" && docker build --build-arg REGISTRY=${ECR_REGISTRY} --build-arg IMAGE_TAG=${IMAGE_TAG} -t "${ECR_REGISTRY}/sushi-portal-prep:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-portal-prep:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-portal-prep:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-portal-prep:${COMMIT_SHORT}"; else echo "Skipping sushi-portal-prep (no changes)"; fi
-
-      - if [ "$BUILD_SPLIT" = "true" ]; then echo "Building sushi-split..." && cd "$BENTO_DIR/sushi-split" && docker build -t "${ECR_REGISTRY}/sushi-split:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-split:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-split:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-split:${COMMIT_SHORT}"; else echo "Skipping sushi-split (no changes)"; fi
-      - if [ "$BUILD_SPLIT_PROJECT" = "true" ]; then echo "Building sushi-split-project..." && cd "$BENTO_DIR/sushi-split-project" && docker build -t "${ECR_REGISTRY}/sushi-split-project:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-split-project:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-split-project:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-split-project:${COMMIT_SHORT}"; else echo "Skipping sushi-split-project (no changes)"; fi
-      - if [ "$BUILD_COLLATE" = "true" ]; then echo "Building sushi-collate-project-files..." && cd "$BENTO_DIR/sushi-collate-project-files" && docker build -t "${ECR_REGISTRY}/sushi-collate-project-files:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-collate-project-files:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-collate-project-files:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-collate-project-files:${COMMIT_SHORT}"; else echo "Skipping sushi-collate-project-files (no changes)"; fi
-      - if [ "$BUILD_DEPMAP" = "true" ]; then echo "Building sushi-depmap-versions..." && cd "$BENTO_DIR/sushi-depmap-versions" && docker build -t "${ECR_REGISTRY}/sushi-depmap-versions:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-depmap-versions:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-depmap-versions:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-depmap-versions:${COMMIT_SHORT}"; else echo "Skipping sushi-depmap-versions (no changes)"; fi
-      - if [ "$BUILD_DOWNLOAD_UPLOAD" = "true" ]; then echo "Building sushi-download-upload..." && cd "$BENTO_DIR/sushi-download-upload" && docker build -t "${ECR_REGISTRY}/sushi-download-upload:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-download-upload:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-download-upload:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-download-upload:${COMMIT_SHORT}"; else echo "Skipping sushi-download-upload (no changes)"; fi
-      - if [ "$BUILD_LOAD_DW" = "true" ]; then echo "Building sushi-load-data-warehouse..." && cd "$BENTO_DIR/sushi-load-data-warehouse" && docker build -t "${ECR_REGISTRY}/sushi-load-data-warehouse:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-load-data-warehouse:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-load-data-warehouse:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-load-data-warehouse:${COMMIT_SHORT}"; else echo "Skipping sushi-load-data-warehouse (no changes)"; fi
-      - if [ "$BUILD_PREP_MANIFEST" = "true" ]; then echo "Building sushi-prepare-download-manifest..." && cd "$BENTO_DIR/sushi-prepare-download-manifest" && docker build -t "${ECR_REGISTRY}/sushi-prepare-download-manifest:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-prepare-download-manifest:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-prepare-download-manifest:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-prepare-download-manifest:${COMMIT_SHORT}"; else echo "Skipping sushi-prepare-download-manifest (no changes)"; fi
-      - if [ "$BUILD_SYNC_DW" = "true" ]; then echo "Building sushi-sync-data-warehouse..." && cd "$BENTO_DIR/sushi-sync-data-warehouse" && docker build -t "${ECR_REGISTRY}/sushi-sync-data-warehouse:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-sync-data-warehouse:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-sync-data-warehouse:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-sync-data-warehouse:${COMMIT_SHORT}"; else echo "Skipping sushi-sync-data-warehouse (no changes)"; fi
-      - if [ "$BUILD_SYNC_S3" = "true" ]; then echo "Building sushi-sync-file-to-s3..." && cd "$BENTO_DIR/sushi-sync-file-to-s3" && docker build -t "${ECR_REGISTRY}/sushi-sync-file-to-s3:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-sync-file-to-s3:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-sync-file-to-s3:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-sync-file-to-s3:${COMMIT_SHORT}"; else echo "Skipping sushi-sync-file-to-s3 (no changes)"; fi
-      - if [ "$BUILD_ZIP" = "true" ]; then echo "Building sushi-zip-project..." && cd "$BENTO_DIR/sushi-zip-project" && docker build -t "${ECR_REGISTRY}/sushi-zip-project:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-zip-project:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-zip-project:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-zip-project:${COMMIT_SHORT}"; else echo "Skipping sushi-zip-project (no changes)"; fi
-      - if [ "$BUILD_ANNOTATE" = "true" ]; then echo "Building sushi-annotate-cells..." && cd "$BENTO_DIR/sushi-annotate-cells" && docker build -t "${ECR_REGISTRY}/sushi-annotate-cells:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-annotate-cells:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-annotate-cells:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-annotate-cells:${COMMIT_SHORT}"; else echo "Skipping sushi-annotate-cells (no changes)"; fi
+      - if [ "$BUILD_BASE_PRISMR" = "true" ]; then echo "Building base-prismr..." && cd "$BENTO_DIR/docker" && docker build -t "${ECR_REGISTRY}/base-prismr:${IMAGE_TAG}" -t "${ECR_REGISTRY}/base-prismr:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/base-prismr:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/base-prismr:${COMMIT_SHORT}"; else echo "Skipping base-prismr"; fi
+      - if [ "$BUILD_SUSHI" = "true" ]; then echo "Building sushi..." && cd "$SUSHI_DIR" && docker build -t "${ECR_REGISTRY}/sushi:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi:${COMMIT_SHORT}"; else echo "Skipping sushi"; fi
+      - if [ "$BUILD_DRC" = "true" ]; then echo "Building sushi-drc..." && cd "$BENTO_DIR/sushi-drc" && docker build --build-arg REGISTRY=${ECR_REGISTRY} --build-arg SUSHI_TAG=${IMAGE_TAG} -t "${ECR_REGISTRY}/sushi-drc:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-drc:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-drc:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-drc:${COMMIT_SHORT}"; else echo "Skipping sushi-drc"; fi
+      - if [ "$BUILD_BIOMARKER" = "true" ]; then echo "Building sushi-biomarker..." && cd "$BENTO_DIR/sushi-biomarker" && docker build --build-arg REGISTRY=${ECR_REGISTRY} --build-arg SUSHI_TAG=${IMAGE_TAG} -t "${ECR_REGISTRY}/sushi-biomarker:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-biomarker:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-biomarker:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-biomarker:${COMMIT_SHORT}"; else echo "Skipping sushi-biomarker"; fi
+      - if [ "$BUILD_PORTAL_PREP" = "true" ]; then echo "Building sushi-portal-prep..." && cd "$BENTO_DIR/sushi-portal-prep" && docker build --build-arg REGISTRY=${ECR_REGISTRY} --build-arg IMAGE_TAG=${IMAGE_TAG} -t "${ECR_REGISTRY}/sushi-portal-prep:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-portal-prep:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-portal-prep:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-portal-prep:${COMMIT_SHORT}"; else echo "Skipping sushi-portal-prep"; fi
+      - if [ "$BUILD_SPLIT" = "true" ]; then echo "Building sushi-split..." && cd "$BENTO_DIR/sushi-split" && docker build -t "${ECR_REGISTRY}/sushi-split:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-split:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-split:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-split:${COMMIT_SHORT}"; else echo "Skipping sushi-split"; fi
+      - if [ "$BUILD_SPLIT_PROJECT" = "true" ]; then echo "Building sushi-split-project..." && cd "$BENTO_DIR/sushi-split-project" && docker build -t "${ECR_REGISTRY}/sushi-split-project:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-split-project:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-split-project:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-split-project:${COMMIT_SHORT}"; else echo "Skipping sushi-split-project"; fi
+      - if [ "$BUILD_COLLATE" = "true" ]; then echo "Building sushi-collate-project-files..." && cd "$BENTO_DIR/sushi-collate-project-files" && docker build -t "${ECR_REGISTRY}/sushi-collate-project-files:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-collate-project-files:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-collate-project-files:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-collate-project-files:${COMMIT_SHORT}"; else echo "Skipping sushi-collate-project-files"; fi
+      - if [ "$BUILD_DEPMAP" = "true" ]; then echo "Building sushi-depmap-versions..." && cd "$BENTO_DIR/sushi-depmap-versions" && docker build -t "${ECR_REGISTRY}/sushi-depmap-versions:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-depmap-versions:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-depmap-versions:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-depmap-versions:${COMMIT_SHORT}"; else echo "Skipping sushi-depmap-versions"; fi
+      - if [ "$BUILD_DOWNLOAD_UPLOAD" = "true" ]; then echo "Building sushi-download-upload..." && cd "$BENTO_DIR/sushi-download-upload" && docker build -t "${ECR_REGISTRY}/sushi-download-upload:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-download-upload:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-download-upload:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-download-upload:${COMMIT_SHORT}"; else echo "Skipping sushi-download-upload"; fi
+      - if [ "$BUILD_LOAD_DW" = "true" ]; then echo "Building sushi-load-data-warehouse..." && cd "$BENTO_DIR/sushi-load-data-warehouse" && docker build -t "${ECR_REGISTRY}/sushi-load-data-warehouse:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-load-data-warehouse:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-load-data-warehouse:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-load-data-warehouse:${COMMIT_SHORT}"; else echo "Skipping sushi-load-data-warehouse"; fi
+      - if [ "$BUILD_PREP_MANIFEST" = "true" ]; then echo "Building sushi-prepare-download-manifest..." && cd "$BENTO_DIR/sushi-prepare-download-manifest" && docker build -t "${ECR_REGISTRY}/sushi-prepare-download-manifest:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-prepare-download-manifest:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-prepare-download-manifest:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-prepare-download-manifest:${COMMIT_SHORT}"; else echo "Skipping sushi-prepare-download-manifest"; fi
+      - if [ "$BUILD_SYNC_DW" = "true" ]; then echo "Building sushi-sync-data-warehouse..." && cd "$BENTO_DIR/sushi-sync-data-warehouse" && docker build -t "${ECR_REGISTRY}/sushi-sync-data-warehouse:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-sync-data-warehouse:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-sync-data-warehouse:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-sync-data-warehouse:${COMMIT_SHORT}"; else echo "Skipping sushi-sync-data-warehouse"; fi
+      - if [ "$BUILD_SYNC_S3" = "true" ]; then echo "Building sushi-sync-file-to-s3..." && cd "$BENTO_DIR/sushi-sync-file-to-s3" && docker build -t "${ECR_REGISTRY}/sushi-sync-file-to-s3:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-sync-file-to-s3:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-sync-file-to-s3:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-sync-file-to-s3:${COMMIT_SHORT}"; else echo "Skipping sushi-sync-file-to-s3"; fi
+      - if [ "$BUILD_ZIP" = "true" ]; then echo "Building sushi-zip-project..." && cd "$BENTO_DIR/sushi-zip-project" && docker build -t "${ECR_REGISTRY}/sushi-zip-project:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-zip-project:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-zip-project:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-zip-project:${COMMIT_SHORT}"; else echo "Skipping sushi-zip-project"; fi
+      - if [ "$BUILD_ANNOTATE" = "true" ]; then echo "Building sushi-annotate-cells..." && cd "$BENTO_DIR/sushi-annotate-cells" && docker build -t "${ECR_REGISTRY}/sushi-annotate-cells:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-annotate-cells:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-annotate-cells:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-annotate-cells:${COMMIT_SHORT}"; else echo "Skipping sushi-annotate-cells"; fi
 
   post_build:
     commands:
       - echo "=== Build Summary ==="
-      - echo "Images updated with tag ${IMAGE_TAG}"
       - echo "Build complete."
