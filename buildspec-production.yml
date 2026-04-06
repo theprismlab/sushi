@@ -1,0 +1,49 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_ACCOUNT_ID: "207675869076"
+    AWS_REGION: "us-east-1"
+    IMAGE_TAG: "production"
+
+phases:
+  pre_build:
+    commands:
+      - echo "=== Pre-build setup ==="
+      - export ECR_REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - export COMMIT_SHORT=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c1-7)
+      - echo "ECR Registry $ECR_REGISTRY"
+      - echo "Commit $COMMIT_SHORT"
+      - if [ -n "$CODEBUILD_SRC_DIR_sushi" ]; then export BENTO_DIR="$CODEBUILD_SRC_DIR"; export SUSHI_DIR="$CODEBUILD_SRC_DIR_sushi"; else export BENTO_DIR="$CODEBUILD_SRC_DIR_bento"; export SUSHI_DIR="$CODEBUILD_SRC_DIR"; fi
+      - echo "Bento dir $BENTO_DIR"
+      - echo "Sushi dir $SUSHI_DIR"
+      - echo "Logging in to ECR..."
+      - aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${ECR_REGISTRY}
+
+  build:
+    commands:
+      - echo "=== Stage 1 Foundation images ==="
+      - echo "Building base-prismr..." && cd "$BENTO_DIR/docker" && docker build -t "${ECR_REGISTRY}/base-prismr:${IMAGE_TAG}" -t "${ECR_REGISTRY}/base-prismr:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/base-prismr:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/base-prismr:${COMMIT_SHORT}"
+      - echo "Building sushi..." && cd "$SUSHI_DIR" && docker build -t "${ECR_REGISTRY}/sushi:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi:${COMMIT_SHORT}"
+      - echo "=== Stage 2 Dependent images ==="
+      - echo "Building sushi-drc..." && cd "$BENTO_DIR/sushi-drc" && docker build --build-arg REGISTRY=${ECR_REGISTRY} --build-arg SUSHI_TAG=${IMAGE_TAG} -t "${ECR_REGISTRY}/sushi-drc:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-drc:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-drc:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-drc:${COMMIT_SHORT}"
+      - echo "Building sushi-biomarker..." && cd "$BENTO_DIR/sushi-biomarker" && docker build --build-arg REGISTRY=${ECR_REGISTRY} --build-arg SUSHI_TAG=${IMAGE_TAG} -t "${ECR_REGISTRY}/sushi-biomarker:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-biomarker:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-biomarker:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-biomarker:${COMMIT_SHORT}"
+      - echo "Building sushi-portal-prep..." && cd "$BENTO_DIR/sushi-portal-prep" && docker build --build-arg REGISTRY=${ECR_REGISTRY} --build-arg IMAGE_TAG=${IMAGE_TAG} -t "${ECR_REGISTRY}/sushi-portal-prep:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-portal-prep:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-portal-prep:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-portal-prep:${COMMIT_SHORT}"
+      - echo "=== Stage 3 Independent images ==="
+      - echo "Building sushi-split..." && cd "$BENTO_DIR/sushi-split" && docker build -t "${ECR_REGISTRY}/sushi-split:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-split:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-split:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-split:${COMMIT_SHORT}"
+      - echo "Building sushi-split-project..." && cd "$BENTO_DIR/sushi-split-project" && docker build -t "${ECR_REGISTRY}/sushi-split-project:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-split-project:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-split-project:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-split-project:${COMMIT_SHORT}"
+      - echo "Building sushi-collate-project-files..." && cd "$BENTO_DIR/sushi-collate-project-files" && docker build -t "${ECR_REGISTRY}/sushi-collate-project-files:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-collate-project-files:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-collate-project-files:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-collate-project-files:${COMMIT_SHORT}"
+      - echo "Building sushi-depmap-versions..." && cd "$BENTO_DIR/sushi-depmap-versions" && docker build -t "${ECR_REGISTRY}/sushi-depmap-versions:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-depmap-versions:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-depmap-versions:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-depmap-versions:${COMMIT_SHORT}"
+      - echo "Building sushi-download-upload..." && cd "$BENTO_DIR/sushi-download-upload" && docker build -t "${ECR_REGISTRY}/sushi-download-upload:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-download-upload:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-download-upload:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-download-upload:${COMMIT_SHORT}"
+      - echo "Building sushi-load-data-warehouse..." && cd "$BENTO_DIR/sushi-load-data-warehouse" && docker build -t "${ECR_REGISTRY}/sushi-load-data-warehouse:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-load-data-warehouse:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-load-data-warehouse:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-load-data-warehouse:${COMMIT_SHORT}"
+      - echo "Building sushi-prepare-download-manifest..." && cd "$BENTO_DIR/sushi-prepare-download-manifest" && docker build -t "${ECR_REGISTRY}/sushi-prepare-download-manifest:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-prepare-download-manifest:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-prepare-download-manifest:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-prepare-download-manifest:${COMMIT_SHORT}"
+      - echo "Building sushi-sync-data-warehouse..." && cd "$BENTO_DIR/sushi-sync-data-warehouse" && docker build -t "${ECR_REGISTRY}/sushi-sync-data-warehouse:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-sync-data-warehouse:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-sync-data-warehouse:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-sync-data-warehouse:${COMMIT_SHORT}"
+      - echo "Building sushi-sync-file-to-s3..." && cd "$BENTO_DIR/sushi-sync-file-to-s3" && docker build -t "${ECR_REGISTRY}/sushi-sync-file-to-s3:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-sync-file-to-s3:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-sync-file-to-s3:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-sync-file-to-s3:${COMMIT_SHORT}"
+      - echo "Building sushi-zip-project..." && cd "$BENTO_DIR/sushi-zip-project" && docker build -t "${ECR_REGISTRY}/sushi-zip-project:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-zip-project:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-zip-project:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-zip-project:${COMMIT_SHORT}"
+      - echo "Building sushi-annotate-cells..." && cd "$BENTO_DIR/sushi-annotate-cells" && docker build -t "${ECR_REGISTRY}/sushi-annotate-cells:${IMAGE_TAG}" -t "${ECR_REGISTRY}/sushi-annotate-cells:${COMMIT_SHORT}" . && docker push "${ECR_REGISTRY}/sushi-annotate-cells:${IMAGE_TAG}" && docker push "${ECR_REGISTRY}/sushi-annotate-cells:${COMMIT_SHORT}"
+
+  post_build:
+    commands:
+      - echo "=== Build Summary ==="
+      - echo "All images pushed to ${ECR_REGISTRY} with tags ${IMAGE_TAG} and ${COMMIT_SHORT}"
+      - echo "Build complete."
