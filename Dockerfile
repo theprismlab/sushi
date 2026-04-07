@@ -46,8 +46,10 @@ RUN pip install --upgrade pip setuptools wheel
 # 3. Install the local sushi-tools Python package and all its dependencies
 WORKDIR /app
 COPY pyproject.toml README.md ./
-COPY sushilib ./sushilib  # Copy the new, clean source directory
-RUN pip install -e .      # Install the package and all dependencies from pyproject.toml
+# Copy the sushilib source directory
+COPY sushilib ./sushilib
+# Install the package and all dependencies from pyproject.toml
+RUN pip install -e .
 
 # 4. Copy R scripts and other project scripts into the container
 # This copies all your script folders (drc, biomarker, etc.)

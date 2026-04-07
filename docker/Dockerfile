@@ -50,5 +50,11 @@ COPY scripts/biomarker /scripts/biomarker
 COPY scripts/utils /scripts/utils
 COPY docker/install_packages.R /src/install_packages.R
 
-# 6. Install R dependencies
+# 6. Copy sushilib Python package
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY sushilib ./sushilib
+RUN pip install -e .
+
+# 7. Install R dependencies
 RUN Rscript /src/install_packages.R
