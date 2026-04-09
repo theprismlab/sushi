@@ -5,6 +5,54 @@ library(magrittr)
 library(PRROC)
 library(dplyr)
 
+# Check for outlier pools and wells with lots of outlier pools
+get_outlier_pools = function(normalized_counts,
+                             negcon = "ctl_vehicle",
+                             id_cols = c("pcr_plate", "pcr_well"),
+                             pert_plate_col = "pert_plate",
+                             pool_cols = c("cell_set", "pool_id"),
+                             cell_line_cols = c("cell_set", "pool_id", "depmap_id", "lua"),
+                             med_log2_norm_diff = 1,
+                             scaled_r_threshold = -2,
+                             well_pass_ratio = 0.75,
+                             pool_pass_ratio = 0.75) {
+
+  message("get_outlier_pools inputs ----")
+  message("        negcon: ", negcon)
+  message("       id_cols: ", paste(id_cols, collapse = ", "))
+  message("pert_plate_col: ", pert_plate_col)
+  message("     pool_cols: ", paste(pool_cols, collapse = ", "))
+  message("cell_line_cols: ", paste(cell_line_cols, collapse = ", "))
+
+  outlier_pools_df = normalized_counts |>
+    dplyr::filter(pert_type != "trt_cp") |>
+    # Get median log2 norm for each cell line on each PCR plate
+    dplyr::group_by(across(all_of(c("pcr_plate", "pert_type", cell_line_cols)))) |>
+    dplyr::mutate(med_log2_norm_n = median(log2_normalized_n, na.rm = TRUE)) |>
+    # Ger spearman correlations betwen log2 norm and median cell line value
+    dplyr::group_by(across(all_of(c(id_cols, pert_plate_col, "pert_type", pool_cols)))) |>
+    dplyr::summarise(s_cor = cor(log2_normalized_n, med_log2_norm_n, use = "p", method = "s"),
+                     abs_med_diff = abs(median(log2_normalized_n - med_log2_norm_n, na.rm = TRUE))) |>
+    # Zscore correlations
+    dplyr::group_by(across(all_of(c("pcr_plate", "pert_type", pool_cols)))) |>
+    dplyr::mutate(z_s_cor = c(scale(s_cor))) |>
+    dplyr::ungroup() |>
+    # QC threholds for pools in a well
+    dplyr::mutate(pool_flag = ifelse((abs_med_diff > med_log2_norm_diff) & (z_s_cor < scaled_r_threshold ),
+                                     "pool failed", NA)) |>
+    dplyr::group_by(across(all_of(id_cols))) |>
+    dplyr::mutate(well.pass.ratio = sum(is.na(pool_flag) / dplyr::n())) |>
+    dplyr::group_by(across(all_of(c("pcr_plate", pool_cols)))) |>
+    # QC thresholds for PCR wells
+    dplyr::mutate(pool.pass.ratio = sum(is.na(pool_flag) / dplyr::n()),
+                  well_flag = dplyr::case_when(well.pass.ratio < well_pass_ratio ~ "Well has several failing pools",
+                                               pool.pass.ratio < pool_pass_ratio ~ "Pool fails in several wells",
+                                               .default = pool_flag)) |>
+    dplyr::ungroup()
+
+  return(outlier_pools_df)
+}
+
 #' Compute error rate
 #'
 #' This function calculates the error rate using receiver operating characteristic (ROC) curve data.
