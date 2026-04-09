@@ -57,15 +57,23 @@ outlier_pools = get_outlier_pools(normalized_counts_rm_cbc,
                                   pool_cols = c("cell_set", "pool_id"),
                                   cell_line_cols = cell_line_cols)
 
-# Write out file
+# Filter out poor pools
+flagged_pools = outlier_pools |> dplyr::filter(!is.na(well_flag))
+
+norm_counts_filt_pools = dplyr::anti_join(normalized_counts_rm_cbc, flagged_pools,
+                                          by = c(id_cols, "pool_id"))
+
+# Write out files
 pool_well_qc_table_outpath = file.path(args$out, "qc_tables", "pool_well_qc_table.csv")
 message("Writing out pool_well_qc_table to ", pool_well_qc_table_outpath)
 write_out_table(table = outlier_pools, path = pool_well_qc_table_outpath)
 check_file_exists(pool_well_qc_table_outpath)
 
-# TODO: Filter out poor pools
-
-
+# Write out flagged pools
+pool_well_qc_flags_outpath = file.path(args$out, "qc_tables", "pool_well_qc_flags.csv")
+message("Writing out pool_well_qc_flags to ", pool_well_qc_flags_outpath)
+write_out_table(table = flagged_pools, path = pool_well_qc_flags_outpath)
+check_file_exists(pool_well_qc_flags_outpath)
 
 # Plate cell line QCs ----
 # Generate plate cell QCs
