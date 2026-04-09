@@ -130,6 +130,7 @@ check_file_exists(id_cols_qc_flags_outpath)
 message("Calculating pool_well level QCs ...")
 pool_well_table = generate_pool_well_qc_table(
   normalized_counts = id_cols_filt_normalized_counts,
+  id_cols = id_cols,
   pool_well_delta_threshold = thresholds$pool_well_delta_threshold,
   pool_well_fraction_threshold = thresholds$pool_well_fraction_threshold
 )

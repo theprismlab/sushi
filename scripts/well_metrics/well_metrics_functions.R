@@ -329,30 +329,27 @@ id_cols_qc_flags <- function(id_cols_table,
 #'   as having excessive outliers.
 #'
 #' @import dplyr
-generate_pool_well_qc_table <- function(normalized_counts, 
-                                        pool_well_delta_threshold = 5, 
+generate_pool_well_qc_table <- function(normalized_counts,
+                                        id_cols = c("pcr_plate", "pcr_well"),
+                                        pool_well_delta_threshold = 5,
                                         pool_well_fraction_threshold = 0.4) {
   ### POOL_WELL_OUTLIERS
   ## Flag pool/well combinations based on the fraction of cell lines in a pool + well that are some distance
   # from the pool + well median.
   ## This is in control wells only
-  # To do: this flags all wells not just the control wells
+  # To do: Comments mention negcons!!! But this is doing all wells?!?!?!
   pool_well_outliers = normalized_counts |>
-    # Consider only cell line barcodes
-    dplyr::filter(is.na(cb_name)) |>
     # Get the median value of the pool in each well
-    dplyr::group_by(pcr_plate, pcr_well, pert_type, pool_id) |>
+    dplyr::group_by(across(all_of(c(id_cols, "pert_type", "pool_id")))) |>
     dplyr::mutate(pool_well_median = median(log2_normalized_n, na.rm = TRUE),
-                  n_cell_lines = dplyr::n_distinct(lua, depmap_id, cell_set),
                   delta_from_pool_well_median = abs(log2_normalized_n - pool_well_median)) |>
     dplyr::summarise(n_outliers = sum(delta_from_pool_well_median > pool_well_delta_threshold, na.rm = TRUE),
-                     n_cell_lines = max(n_cell_lines),
+                     n_cell_lines = dplyr::n(),
                      .groups = "drop") |>
     dplyr::mutate(fraction_outliers = n_outliers / n_cell_lines,
                   qc_flag = if_else(fraction_outliers > pool_well_fraction_threshold,
                                     "pool_well_outliers", NA_character_))
 }
-
 
 #' Compute variance decomposition
 #'
