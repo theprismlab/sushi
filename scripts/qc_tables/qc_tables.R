@@ -48,6 +48,27 @@ contains_poscon = any(normalized_counts$pert_type == args$poscon_type)
 # Filter out control barcodes from normalized counts
 normalized_counts_rm_cbc = filter_control_barcodes(normalized_counts)
 
+# Outlier pools ----
+# Identify outlier pools
+outlier_pools = get_outlier_pools(normalized_counts_rm_cbc,
+                                  negcon = negcon,
+                                  id_cols = c("pcr_plate", "pcr_well"),
+                                  pert_plate_col = pert_plate_col,
+                                  pool_cols = c("cell_set", "pool_id"),
+                                  cell_line_cols = cell_line_cols)
+
+# Write out file
+pool_well_qc_table_outpath = file.path(args$out, "qc_tables", "pool_well_qc_table.csv")
+message("Writing out pool_well_qc_table to ", pool_well_qc_table_outpath)
+write_out_table(table = outlier_pools, path = pool_well_qc_table_outpath)
+check_file_exists(pool_well_qc_table_outpath)
+
+# TODO: Filter out poor pools
+
+
+
+# Plate cell line QCs ----
+# Generate plate cell QCs
 plate_cell_table = generate_plate_cell_table(
   normalized_counts = normalized_counts_rm_cbc,
   cell_line_cols = cell_line_cols,
