@@ -47,6 +47,7 @@ pipeline {
         choice(name: 'SCREEN_TYPE', choices: ['MTS_SEQ', 'CPS_SEQ', 'EPS_SEQ', 'APS_SEQ'], description: 'Select the type of build you are running.')
         string(name: 'PERT_PLATES', defaultValue: '', description: 'Comma separated list of pert_plates to include in this build. If not provided, all plates for the given screen will be used.')
         string(name: 'SIG_COLS', defaultValue: 'cell_set,pert_type,pert_name,pert_id,pert_dose,pert_dose_unit,day,x_project_id,pert_plate,pert_vehicle', description: 'List of signature columns found in the sample meta that describe unique treatment conditions. Generally, this list should NOT include replicate information such as \"tech_rep\" or \"bio_rep\".')
+        string(name: 'COUNT_THRESHOLD', defaultValue: '100', description: 'Threshold for filtering negative controls and QC metrics. Cell lines with median counts below this are dropped. Also sets: well_reads_threshold=n, nc_raw_count_threshold=n, low_abundance_threshold=0.5n, read_detection_limit=0.25n')
 
         separator(
           name: "metadata",
@@ -137,7 +138,6 @@ pipeline {
         string(name: 'nc_variability_threshold', defaultValue: '1', description: 'Threshold for negative control variability')
         string(name: 'error_rate_threshold', defaultValue: '0.05', description: 'Threshold for error rate')
         string(name: 'pc_viability_threshold', defaultValue: '0.25', description: 'Threshold for positive control viability')
-        string(name: 'nc_raw_count_threshold', defaultValue: '40', description: 'Threshold for negative control raw counts')
         string(name: 'contamination_threshold', defaultValue: '0.8', description: 'Threshold for fraction of expected reads')
         string(name: 'cb_mae_threshold', defaultValue: '1', description: 'Threshold for mean absolute error of control barcodes')
         string(name: 'cb_spearman_threshold', defaultValue: '0.8', description: 'Threshold for control barcode spearman correlation')
@@ -145,7 +145,6 @@ pipeline {
         string(name: 'cb_cl_ratio_high_negcon', defaultValue: '100', description: 'High threshold for control barcode ratio in negative controls')
         string(name: 'cb_cl_ratio_low_poscon', defaultValue: '0', description: 'Low threshold for control barcode ratio in positive controls')
         string(name: 'cb_cl_ratio_high_poscon', defaultValue: '100', description: 'High threshold for control barcode ratio in positive controls')
-        string(name: 'well_reads_threshold', defaultValue: '40', description: 'Minimum median control barcode reads per well')
         string(name: 'pool_well_delta_threshold', defaultValue: '5', description: 'Maximum delta of log2_normalized_n between a cell line and the pool median in a given well before it is considered an outlier')
         string(name: 'pool_well_fraction_threshold', defaultValue: '0.4', description: 'Minimum fraction of cells in a pool that must be outliers in order to flag that pool/well')
         string(name: 'fraction_expected_controls', defaultValue: '0.667', description: 'Fraction of expected controls that must be present in a given pcr_plate for it to be considered a valid well. If either vehicle or poscon wells fall below this threshold, the entire pcr_plate will be removed.')
@@ -164,14 +163,11 @@ pipeline {
         string(name: 'SEQUENCING_INDEX_COLS', defaultValue: 'flowcell_names,index_1,index_2', description: 'List of sequencing related columns found in the sample meta. These columns are used to uniquely identify every PCR well in the run. Default value is \"flowcell_names,index_1,index_2\", and the parameter is used in COLLATE_FASTQ_READS.')
         string(name: 'ID_COLS', defaultValue: 'pcr_plate,pcr_well', description: 'List of columns found in the sample meta that are used to create a unique ID for each sample-replicate. This defaults to \"pcr_plate,pcr_well\", but could be any combination sample meta columns that uniquely identifies every well in the run. This parameter is first used in COLLATE_FASTQ_READS.')
         string(name: 'CHUNK_SIZE', defaultValue: '10000000', description: 'Number of rows for a chunk. Due to the large size of the Nori output, some actions are performed in chunks to conserve memory. This parameter sets the size of a chunk and defaults to 10^6 or \"10000000\". This paramter is first used in COLLATE_FASTQ_READS.')
-        string(name: 'LOW_ABUNDANCE_THRESHOLD', defaultValue: '20', description: 'Threshold for unknown barcodes. Unknown barcodes below this threshold will be deidentified and their counts will be included under the term unknown_low_abundance_barcode. This paramter defaults to \"20\" and is used in COLLATE_FASTQ_READS.')
         // Normalize
         string(name: 'PSEUDOCOUNT', defaultValue: '0', description: 'Pseudocount value added to all reads before log transformations. This defaults to \"0\" and is used in CBNORMALIZE.')
-        string(name: 'READ_DETECTION_LIMIT', defaultValue: '10', description: 'Smallest read count value used to compute pseudovalues.')
         // Compute l2fc 
         string(name: 'CELL_LINE_COLS', defaultValue: 'pool_id,depmap_id,lua,cell_set,growth_condition', description: 'List of columns across the metadata files that are used to identify a unique cell line. This defaults to \"pool_id,depmap_id,lua\", but can also include \"cell_set\" or descriptive columns like \"project_code\" that you would like to pass through the pipeline. This parameter is first used in COMPUTE_LFC.')
         string(name: 'COUNT_COL_NAME', defaultValue: 'log2_normalized_n', description: 'Name of the numerical column that should be used to compute log2 fold change values. This defaults to \"normalized_n\" and is used in COMPUTE_LFC.')
-        string(name: 'COUNT_THRESHOLD', defaultValue: '40', description: 'Threshold for filtering the negative controls. In the negative control conditions, cell lines whose median counts are below this threshold are not confidently detected and thus are dropped. This defaults to \"40\" and is used in COMPUTE_LFC.')
         string(name: 'BIO_REP_COL', defaultValue: 'bio_rep', description: 'Column identifying the biological replicates. Defaults to \"bio_rep\".')
         // Collapse replicates
         string(name: 'L2FC_COLUMN', defaultValue: 'l2fc', description: 'Name of the column containing the log2 fold change values used in DRC. This defaults to \"l2fc\".')
@@ -272,10 +268,10 @@ pipeline {
                         'LFC', 'COLLAPSED_LFC',
 
                         // collate_fastq_reads parameters
-                        'SEQUENCING_INDEX_COLS', 'ID_COLS', 'BARCODE_COL', 'LOW_ABUNDANCE_THRESHOLD', 'CHUNK_SIZE', 'REVERSE_INDEX2',
+                        'SEQUENCING_INDEX_COLS', 'ID_COLS', 'BARCODE_COL', 'CHUNK_SIZE', 'REVERSE_INDEX2',
 
                         // normalize parameters
-                        'NORM_METHOD', 'PSEUDOCOUNT', 'READ_DETECTION_LIMIT',
+                        'NORM_METHOD', 'PSEUDOCOUNT',
 
                         // compute_l2fc parameters
                         'SIG_COLS', 'CONTROL_COLS', 'CELL_LINE_COLS', 'COUNT_COL_NAME', 'CTL_TYPES', 'COUNT_THRESHOLD', 'VIABILITY_CAP',
@@ -318,6 +314,11 @@ pipeline {
                     // Explicit settings that are programmatically derived
                     config.REVERSE_INDEX2 = config.SEQ_TYPE == 'DRAGEN'
 
+                    // Compute thresholds based on COUNT_THRESHOLD
+                    def countThreshold = (config.COUNT_THRESHOLD ?: params.COUNT_THRESHOLD ?: '40') as Double
+                    config.LOW_ABUNDANCE_THRESHOLD = String.valueOf((countThreshold * 0.5) as int)
+                    config.READ_DETECTION_LIMIT = String.valueOf((countThreshold * 0.25) as int)
+
                     // Write the config back to file after all updates
                     writeFile file: env.CONFIG_FILE_PATH, text: groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(config))
                     echo "Generated config.json: ${config}"
@@ -330,9 +331,9 @@ pipeline {
                 script {
                     def paramList = [
                         'nc_variability_threshold', 'error_rate_threshold', 'pc_viability_threshold',
-                        'nc_raw_count_threshold', 'contamination_threshold', 'cb_mae_threshold',
+                        'contamination_threshold', 'cb_mae_threshold',
                         'cb_spearman_threshold', 'cb_cl_ratio_low_negcon', 'cb_cl_ratio_high_negcon',
-                        'cb_cl_ratio_low_poscon', 'cb_cl_ratio_high_poscon', 'well_reads_threshold',
+                        'cb_cl_ratio_low_poscon', 'cb_cl_ratio_high_poscon',
                         'pool_well_delta_threshold', 'pool_well_fraction_threshold', 'fraction_expected_controls'
                     ]
 
@@ -350,6 +351,12 @@ pipeline {
                             config[paramName] = params[paramName]
                         }
                     }
+
+                    // Compute QC thresholds based on COUNT_THRESHOLD
+                    def countThreshold = params.COUNT_THRESHOLD ?: '40'
+                    config.nc_raw_count_threshold = countThreshold
+                    config.well_reads_threshold = countThreshold
+
                     // Write the config back to file after all updates
                     writeFile file: env.QC_PARAMS_FILE_PATH, text: groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(config))
                 }

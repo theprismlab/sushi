@@ -144,10 +144,21 @@ def main():
     )
 
     try:
+        # First, get the list of pert_plates that belong to the exact screen
+        # This allows us to include rows from related screens (via LIKE) that share pert_plates
+        exact_screen_df = fetch_metadata(
+            filter_dict={"where": {"project_code": screen}},
+            base_url="https://api.theprismlab.org/api/v_seq_metadata",
+            api_key=api_key,
+        )
+        valid_pert_plates = exact_screen_df["pert_plate"].unique().tolist()
+        print(f"Found {len(valid_pert_plates)} distinct pert_plates for screen {screen}")
+
+        # Get all rows matching the LIKE pattern, then filter to valid pert_plates
         df = (
             fetch_metadata(
                 filter_dict={"where": {"project_code": {"like": f"%{screen}%"}}},
-                base_url="https://api.clue.io/api/v_seq_metadata",
+                base_url="https://api.theprismlab.org/api/v_seq_metadata",
                 api_key=api_key,
             )
             .pipe(rename_sample_meta)
@@ -165,6 +176,11 @@ def main():
             )
             .pipe(filter_nan_flowcells, build_dir)
         )
+
+        # Filter to only pert_plates that belong to the exact screen
+        df = df[df["pert_plate"].isin(valid_pert_plates)]
+        print(f"Filtered to {len(df)} rows with pert_plates from screen {screen}")
+
         # Subset to provided pert plates if any
         if pert_plates:
             print(
