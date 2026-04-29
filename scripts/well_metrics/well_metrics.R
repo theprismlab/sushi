@@ -127,32 +127,32 @@ write_out_table(table = id_cols_qc_flags_table, path = id_cols_qc_flags_outpath)
 check_file_exists(id_cols_qc_flags_outpath)
 
 # POOL WELL QCs ----
-message("Calculating pool_well level QCs ...")
-pool_well_table = generate_pool_well_qc_table(
-  normalized_counts = id_cols_filt_normalized_counts,
-  id_cols = id_cols,
-  pool_well_delta_threshold = thresholds$pool_well_delta_threshold,
-  pool_well_fraction_threshold = thresholds$pool_well_fraction_threshold
-)
+#message("Calculating pool_well level QCs ...")
+#pool_well_table = generate_pool_well_qc_table(
+#  normalized_counts = id_cols_filt_normalized_counts,
+#  id_cols = id_cols,
+#  pool_well_delta_threshold = thresholds$pool_well_delta_threshold,
+#  pool_well_fraction_threshold = thresholds$pool_well_fraction_threshold
+#)
 
 # Filter out poor performing pools in wells
-pool_well_qc_flags_table = pool_well_table |>
-  dplyr::filter(!is.na(qc_flag)) |>
-  unique()
+#pool_well_qc_flags_table = pool_well_table |>
+#  dplyr::filter(!is.na(qc_flag)) |>
+#  unique()
 
-pool_well_filt_norm_counts = dplyr::anti_join(id_cols_filt_normalized_counts, pool_well_qc_flags_table,
-                                              by = c(id_cols, "pool_id"))
+#pool_well_filt_norm_counts = dplyr::anti_join(id_cols_filt_normalized_counts, pool_well_qc_flags_table,
+#                                              by = c(id_cols, "pool_id"))
 
 # Write out pool_well qcs and flags
-pool_well_qc_table_outpath = file.path(args$out, "qc_tables", "pool_well_qc_table.csv")
-message("Writing out pool_well_qc_table to ", pool_well_qc_table_outpath)
-write_out_table(table = pool_well_table, path = pool_well_qc_table_outpath)
-check_file_exists(pool_well_qc_table_outpath)
+#pool_well_qc_table_outpath = file.path(args$out, "qc_tables", "pool_well_qc_table.csv")
+#message("Writing out pool_well_qc_table to ", pool_well_qc_table_outpath)
+#write_out_table(table = pool_well_table, path = pool_well_qc_table_outpath)
+#check_file_exists(pool_well_qc_table_outpath)
 
-pool_well_qc_flags_outpath = file.path(args$out, "qc_tables", "pool_well_qc_flags.csv")
-message("Writing out pool_well_qc_flags to ", pool_well_qc_flags_outpath)
-write_out_table(table = pool_well_qc_flags_table, path = pool_well_qc_flags_outpath)
-check_file_exists(pool_well_qc_flags_outpath)
+#pool_well_qc_flags_outpath = file.path(args$out, "qc_tables", "pool_well_qc_flags.csv")
+#message("Writing out pool_well_qc_flags to ", pool_well_qc_flags_outpath)
+#write_out_table(table = pool_well_qc_flags_table, path = pool_well_qc_flags_outpath)
+#check_file_exists(pool_well_qc_flags_outpath)
 
 # Write out filtered normalized counts ----
 if (filter_qc_flags == TRUE) {
@@ -165,7 +165,7 @@ if (filter_qc_flags == TRUE) {
 
   filt_norm_counts_outpath = file.path(args$out, "normalized_counts.csv")
   message("Writing filtered normalized_counts to ", filt_norm_counts_outpath)
-  write_out_table(table = pool_well_filt_norm_counts, path = filt_norm_counts_outpath)
+  write_out_table(table = id_cols_filt_normalized_counts, path = filt_norm_counts_outpath)
   check_file_exists(filt_norm_counts_outpath)
 } else {
   message("Normalized counts NOT filtered for qc_flags.")
