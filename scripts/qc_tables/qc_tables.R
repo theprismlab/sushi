@@ -78,7 +78,7 @@ check_file_exists(pool_well_qc_flags_outpath)
 # Plate cell line QCs ----
 # Generate plate cell QCs
 plate_cell_table = generate_plate_cell_table(
-  normalized_counts = normalized_counts_rm_cbc,
+  normalized_counts = norm_counts_filt_pools,
   cell_line_cols = cell_line_cols,
   sig_cols = sig_cols,
   pcr_plate_col = pcr_plate_col,
