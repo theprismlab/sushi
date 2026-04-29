@@ -14,6 +14,7 @@ source("utils/kitchen_utensils.R")
 parser = ArgumentParser()
 parser$add_argument("--normalized_counts", default = "normalized_counts.csv", help = "normalized counts file")
 parser$add_argument("--qc_params", default = "qc_params.json", help = "File containing QC parameters")
+parser$add_argument("--id_cols", default = "pcr_plate,pcr_well")
 parser$add_argument("--cell_line_cols", default = "pool_id,depmap_id,lua")
 parser$add_argument("--sig_cols", default = "")
 parser$add_argument("--pcr_plate_col", default = "pcr_plate")
@@ -36,6 +37,7 @@ if (!dir.exists(file.path(args$out, "qc_tables"))) {
 }
 
 # Set up parameters
+id_cols = unlist(strsplit(args$id_cols, ","))
 cell_line_cols = unlist(strsplit(args$cell_line_cols, ","))
 sig_cols = unlist(strsplit(args$sig_cols, ","))
 pcr_plate_col = args$pcr_plate_col
@@ -52,7 +54,7 @@ normalized_counts_rm_cbc = filter_control_barcodes(normalized_counts)
 # Identify outlier pools
 outlier_pools = get_outlier_pools(normalized_counts_rm_cbc,
                                   negcon = negcon,
-                                  id_cols = c("pcr_plate", "pcr_well"),
+                                  id_cols = id_cols,
                                   pert_plate_col = pert_plate_col,
                                   pool_cols = c("cell_set", "pool_id"),
                                   cell_line_cols = cell_line_cols)

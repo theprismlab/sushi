@@ -29,6 +29,7 @@ enforce_abs_path QC_PARAMS
 args=(
 --normalized_counts "${NORMALIZED_COUNTS}"
 --qc_params "${QC_PARAMS}"
+--id_cols "${ID_COLS}"
 --cell_line_cols "${CELL_LINE_COLS}"
 --sig_cols "${SIG_COLS}"
 --pseudocount "${PSEUDOCOUNT}"
