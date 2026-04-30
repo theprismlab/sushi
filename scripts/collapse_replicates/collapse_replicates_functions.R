@@ -55,6 +55,44 @@ collapse_bio_reps= function(l2fc, sig_cols, cell_line_cols= c('depmap_id', 'lua'
     max_bio_rep_count= max(unique(collapsed_counts$num_bio_reps))
     validate_num_bio_reps(num_unique_bio_reps, max_bio_rep_count)
   }
-  
+
   return(collapsed_counts)
+}
+
+# Monotonicity qc
+# trt_cl_cols - sig cols without dose + cell line cols
+# trt_pool_cols - sig_cols and pool cols
+get_monotonicity = function(collapsed_l2fc, trt_cl_cols, trt_pool_cols) {
+  # Cell line level monotonicity
+  monotonicity_flags = collapsed_l2fc |>
+    dplyr::group_by(all_of(trt_cl_cols)) |>
+    dplyr::arrange(pert_dose, .by_group = TRUE) |>
+    dplyr::mutate(# Identify prev and next dose and l2fc
+                  prev_dose = dplyr::lag(pert_dose),
+                  prev_l2fc = dplyr::lag(median_l2fc),
+                  next_dose = dplyr::lead(pert_dose),
+                  next_l2fc = dplyr::lead(median_l2fc),
+                  # Set flags for current dose
+                  flag.down = median_l2fc < -2,
+                  flag.up = median_l2fc > -1,
+                  # Set flags for previous dose
+                  flag.down.prev = ifelse(is.na(prev_dose), FALSE, prev_l2fc < -2),
+                  flag.up.prev = ifelse(is.na(prev_dose), TRUE,  prev_l2fc > -1),
+                  # Set flags for next dose
+                  flag.down.next = ifelse(is.na(next_dose), TRUE,  next_l2fc < -2),
+                  flag.up.next = ifelse(is.na(next_dose), FALSE, next_l2fc > -1),
+                  # Determine monotonicity for each row
+                  flag1 = flag.down & flag.up.next & flag.up.prev,
+                  flag2 = flag.up & flag.down.next & flag.down.prev) |>
+    dplyr::ungroup()
+
+  # Aggregate cell line level calls into a pool level flag
+  outlier_pools = monotonicity_flags |>
+    dplyr::group_by(trt_pool_cols) |>
+    dplyr::summarise(n.f1 = mean(flag1, na.rm = T),
+                     n.f2 = mean(flag2, na.rm = T)) |>
+    dplyr::ungroup() |>
+    dplyr::mutate(outlier = pmax(n.f1, n.f2) > 0.25)
+
+  return(outlier_pools)
 }

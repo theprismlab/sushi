@@ -22,7 +22,8 @@ parser$add_argument("--cell_line_cols", default= "pool_id,depmap_id,lua",
                     help= "Columns that can describe a cell line")
 parser$add_argument("--collapsed_l2fc_file", default = "collapsed_l2fc.csv",
                     help = "Name of the file to be stored in the output directory.")
-parser$add_argument("-o", "--out", default= getwd(), help= "Output path. Default is working directory")
+parser$add_argument("--mt_filter", type = "logical", default = FALSE, help = "Filter out outlier treatment pools")
+parser$add_argument("-o", "--out", default = getwd(), help = "Output path. Default is working directory")
 
 
 # get command line options, if help option encountered print help and exit
@@ -38,6 +39,25 @@ cell_line_cols= unlist(strsplit(args$cell_line_cols, ","))
 
 print("Collapsing biological replicates ...")
 collapsed_l2fc= collapse_bio_reps(l2fc= lfc_values, sig_cols= sig_cols, cell_line_cols= cell_line_cols)
+
+if (args$mt_filter) {
+  message("Monotonicity QC filter: On")
+  outlier_pool = get_monotonicity(collapsed_l2fc, cell_line_cols)
+
+  # Create a qc output directory if one does not exist
+  if (!dir.exists(file.path(args$out, "qc_tables"))) {
+    dir.create(file.path(args$out, "qc_tables"))
+  }
+  # Write out outlier pool table as a csv
+  outlier_pool_outpath = file.path(args$out, "outlier_trt_pools.csv")
+  message("Writing out monotonicity filter file to ", outlier_pool_outpath)
+  write_out_table(outlier_pool, outlier_pool_outpath)
+
+  message("Filtering out ", nrow(outlier_pool), " pools from collapsed_l2fc")
+  failed_pools = outlier_pool |> dplyr::filter(outlier == TRUE)
+  join_cols = c("pert_plate", "pert_name", "pert_dose", "cell_set", "pool_id")
+  collapsed_l2fc = collapsed_l2fc |> anti_join(outlier_pool, by = join_cols)
+}
 
 # Write out file ----
 collapsed_l2fc_outpath = file.path(args$out, args$collapsed_l2fc_file)
