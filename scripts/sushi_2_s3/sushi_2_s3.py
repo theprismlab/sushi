@@ -62,8 +62,8 @@ def read_build_file(search_pattern, args):
 
 
 def generate_compound_key(df, filt_cols: list):
-    # Filter out the positive and vehicle controls
-    df = df[~df["pert_type"].isin(["trt_poscon", "ctl_vehicle"])]
+    # Filter out the positive and vehicle controls as well as untreated controls
+    df = df[~df["pert_type"].isin(["trt_poscon", "ctl_vehicle", "ctl_untrt"])]
 
     # Select the columns we need
     df = df[filt_cols]
@@ -74,8 +74,8 @@ def generate_compound_key(df, filt_cols: list):
 
 
 def generate_merge_key(df, merge_patterns):
-    # Filter out the positive and vehicle controls
-    df = df[~df["pert_type"].isin(["trt_poscon", "ctl_vehicle"])]
+    # Filter out the positive and vehicle controls as well as untreated controls
+    df = df[~df["pert_type"].isin(["trt_poscon", "ctl_vehicle", "ctl_untrt"])]
 
     # Get a list of x_project_ids
     project_ids = df["x_project_id"].unique()
