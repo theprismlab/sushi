@@ -65,7 +65,7 @@ collapse_bio_reps= function(l2fc, sig_cols, cell_line_cols= c('depmap_id', 'lua'
 get_monotonicity = function(collapsed_l2fc, trt_cl_cols, trt_pool_cols) {
   # Cell line level monotonicity
   monotonicity_flags = collapsed_l2fc |>
-    dplyr::group_by(all_of(trt_cl_cols)) |>
+    dplyr::group_by(across(all_of(trt_cl_cols))) |>
     dplyr::arrange(pert_dose, .by_group = TRUE) |>
     dplyr::mutate(# Identify prev and next dose and l2fc
                   prev_dose = dplyr::lag(pert_dose),
@@ -88,7 +88,7 @@ get_monotonicity = function(collapsed_l2fc, trt_cl_cols, trt_pool_cols) {
 
   # Aggregate cell line level calls into a pool level flag
   outlier_pools = monotonicity_flags |>
-    dplyr::group_by(all_of(trt_pool_cols)) |>
+    dplyr::group_by(across(all_of(trt_pool_cols))) |>
     dplyr::summarise(n.f1 = mean(flag1, na.rm = T),
                      n.f2 = mean(flag2, na.rm = T)) |>
     dplyr::ungroup() |>
