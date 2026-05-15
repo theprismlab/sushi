@@ -53,7 +53,6 @@ normalized_counts_rm_cbc = filter_control_barcodes(normalized_counts)
 # Outlier pools ----
 # Identify outlier pools
 outlier_pools = get_outlier_pools(normalized_counts_rm_cbc,
-                                  negcon = negcon,
                                   id_cols = id_cols,
                                   pert_plate_col = pert_plate_col,
                                   pool_cols = c("cell_set", "pool_id"),
