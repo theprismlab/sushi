@@ -89,8 +89,8 @@ get_monotonicity = function(collapsed_l2fc, trt_cl_cols, trt_pool_cols) {
   # Aggregate cell line level calls into a pool level flag
   outlier_pools = monotonicity_flags |>
     dplyr::group_by(across(all_of(trt_pool_cols))) |>
-    dplyr::summarise(n.f1 = mean(flag1, na.rm = T),
-                     n.f2 = mean(flag2, na.rm = T)) |>
+    dplyr::mutate(n.f1 = mean(flag1, na.rm = TRUE), # change back to summarize
+                     n.f2 = mean(flag2, na.rm = TRUE)) |>
     dplyr::ungroup() |>
     dplyr::mutate(outlier = pmax(n.f1, n.f2) > 0.25)
 
