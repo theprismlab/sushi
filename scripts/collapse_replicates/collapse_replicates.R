@@ -53,12 +53,12 @@ if (args$mt_filter) {
     dir.create(file.path(args$out, "qc_tables"))
   }
   # Write out outlier pool table as a csv
-  outlier_pool_outpath = file.path(args$out, "outlier_trt_pools.csv")
+  outlier_pool_outpath = file.path(args$out, "qc_tables", "outlier_trt_pools.csv")
   message("Writing out monotonicity filter file to ", outlier_pool_outpath)
   write_out_table(outlier_pool, outlier_pool_outpath)
 
-  message("Filtering out ", nrow(outlier_pool), " pools from collapsed_l2fc")
   failed_pools = outlier_pool |> dplyr::filter(outlier == TRUE)
+  message("Filtering out ", nrow(failed_pools), " pools from collapsed_l2fc")
   join_cols = c("pert_plate", "pert_name", "pert_dose", "cell_set", "pool_id")
   collapsed_l2fc = collapsed_l2fc |> anti_join(outlier_pool, by = join_cols)
 } else {
