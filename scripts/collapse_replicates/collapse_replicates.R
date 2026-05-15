@@ -42,11 +42,10 @@ collapsed_l2fc= collapse_bio_reps(l2fc= lfc_values, sig_cols= sig_cols, cell_lin
 
 if (args$mt_filter) {
   message("Monotonicity QC filter: On")
-  trt_cl_cols = c(setdiff(sig_cols, c("pert_dose", "pert_dose_unit", "pert2_dose", "pert2_dose_unit")),
-                  cell_line_cols)
-  outlier_pool = get_monotonicity(collapsed_l2fc,
-                                  trt_cl_cols = trt_cl_cols,
-                                  trt_pool_cols = c(sig_cols, "cell_set", "pool_id"))
+  trt_cl_cols = unique(c(setdiff(sig_cols, c("pert_dose", "pert_dose_unit", "pert2_dose", "pert2_dose_unit")),
+                  cell_line_cols))
+  trt_pool_cols = unique(c(sig_cols, intersect(cell_line_cols, c("cell_set", "pool_id"))))
+  outlier_pool = get_monotonicity(collapsed_l2fc, trt_cl_cols = trt_cl_cols, trt_pool_cols = trt_pool_cols)
 
   # Create a qc output directory if one does not exist
   if (!dir.exists(file.path(args$out, "qc_tables"))) {
