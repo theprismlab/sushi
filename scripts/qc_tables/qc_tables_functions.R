@@ -7,7 +7,6 @@ library(dplyr)
 
 # Check for outlier pools and wells with lots of outlier pools
 get_outlier_pools = function(normalized_counts,
-                             negcon = "ctl_vehicle",
                              id_cols = c("pcr_plate", "pcr_well"),
                              pert_plate_col = "pert_plate",
                              pool_cols = c("cell_set", "pool_id"),
@@ -18,7 +17,6 @@ get_outlier_pools = function(normalized_counts,
                              pool_pass_ratio = 0.75) {
 
   message("get_outlier_pools inputs ----")
-  message("        negcon: ", negcon)
   message("       id_cols: ", paste(id_cols, collapse = ", "))
   message("pert_plate_col: ", pert_plate_col)
   message("     pool_cols: ", paste(pool_cols, collapse = ", "))
@@ -38,7 +36,7 @@ get_outlier_pools = function(normalized_counts,
     dplyr::mutate(z_s_cor = c(scale(s_cor))) |>
     dplyr::ungroup() |>
     # QC threholds for pools in a well
-    dplyr::mutate(pool_flag = ifelse((abs_med_diff > med_log2_norm_diff) & (z_s_cor < scaled_r_threshold ),
+    dplyr::mutate(pool_flag = ifelse((abs_med_diff > med_log2_norm_diff) & (z_s_cor < scaled_r_threshold),
                                      "pool failed", NA)) |>
     dplyr::group_by(across(all_of(id_cols))) |>
     dplyr::mutate(well.pass.ratio = sum(is.na(pool_flag) / dplyr::n())) |>
