@@ -22,7 +22,7 @@ parser$add_argument("--cell_line_cols", default= "pool_id,depmap_id,lua",
                     help= "Columns that can describe a cell line")
 parser$add_argument("--collapsed_l2fc_file", default = "collapsed_l2fc.csv",
                     help = "Name of the file to be stored in the output directory.")
-parser$add_argument("--mt_filter", type = "logical", default = FALSE, help = "Filter out outlier treatment pools")
+parser$add_argument("--mt_filter", type = "logical", default = TRUE, help = "Filter out outlier treatment pools")
 parser$add_argument("-o", "--out", default = getwd(), help = "Output path. Default is working directory")
 
 
@@ -57,6 +57,8 @@ if (args$mt_filter) {
   failed_pools = outlier_pool |> dplyr::filter(outlier == TRUE)
   join_cols = c("pert_plate", "pert_name", "pert_dose", "cell_set", "pool_id")
   collapsed_l2fc = collapsed_l2fc |> anti_join(outlier_pool, by = join_cols)
+} else {
+  message("Monotonicity QC filter: Off")
 }
 
 # Write out file ----
