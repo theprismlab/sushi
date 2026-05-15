@@ -51,6 +51,26 @@ plate_cell_qc_path = args$plate_cell_qc_path
 # If l2fc files already exist, remove them ----
 delete_existing_files(args$out, "^l2fc")
 
+# Filter out failing pools
+if (args$filter_failed_lines) {
+  # Check that pool_qc_path is valid
+  if (pool_qc_path == "") {
+    append_critical_output("If filter_failed_lines is TRUE, please provide a path to the pool level QC file.",
+                           output_path= args$out)
+    stop("If filter_failed_lines is TRUE, please provide a path to the pool level QC file.")
+  }
+
+  # Filter failing pools
+  pool_qc = read_data_table(pool_qc_path)
+  join_cols = c("pert_plate", "pcr_plate", "pcr_well", "cell_set", "pool_id")
+  failed_pools = pool_qc |> dplyr::filter(!is.na(well_flag)) |> dplyr::select(all_of(join_cols))
+
+  message("Removing ", nrow(failed_pools), " failing pools ...")
+  normalized_counts = normalized_counts |> dplyr::anti_join(failed_pools, by = join_cols)
+} else {
+  message("Skipping pool filters ...")
+}
+
 print("Collapsing tech reps and computing log-fold change ...")
 l2fc= compute_l2fc(normalized_counts= normalized_counts,
                    control_type= control_type,
@@ -62,12 +82,6 @@ l2fc= compute_l2fc(normalized_counts= normalized_counts,
 
 # If filter_failed_lines is TRUE, filter out failed cell lines from the output file ----
 if (args$filter_failed_lines) {
-  # Check if qc files were provided
-  if (pool_qc_path == "") {
-    append_critical_output("If filter_failed_lines is TRUE, please provide a path to the pool level QC file.",
-                           output_path= args$out)
-    stop("If filter_failed_lines is TRUE, please provide a path to the pool level QC file.")
-  }
   if (plate_cell_qc_path == "") {
     append_critical_output("If filter_failed_lines is TRUE, please provide a path to the cell line level QC file.",
                            output_path= args$out)
@@ -78,14 +92,6 @@ if (args$filter_failed_lines) {
   message("Writing out unfiltered l2fc file ...")
   l2fc_unfiltered_outpath = file.path(args$out, "l2fc_original.csv")
   write_out_table(l2fc, l2fc_unfiltered_outpath)
-
-  # Filter failing pools
-  pool_qc = read_data_table(pool_qc_path)
-  join_cols = c("pert_plate", "pcr_plate", "pcr_well", "cell_set", "pool_id")
-  failed_pools = pool_qc |> dplyr::filter(!is.na(well_flag)) |> dplyr::select(all_of(join_cols))
-
-  message("Removing ", nrow(failed_pools), " failing pools ...")
-  l2fc = l2fc |> dplyr::anti_join(failed_pools, by = join_cols)
 
   # Filter failing cell lines
   plate_cell_qc = read_data_table(plate_cell_qc_path)
