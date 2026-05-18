@@ -40,6 +40,11 @@ cell_line_cols= unlist(strsplit(args$cell_line_cols, ","))
 print("Collapsing biological replicates ...")
 collapsed_l2fc= collapse_bio_reps(l2fc= lfc_values, sig_cols= sig_cols, cell_line_cols= cell_line_cols)
 
+# Write out initial collapsed_l2fc file
+collapsed_l2fc_outpath = file.path(args$out, "collapsed_l2fc_original.csv")
+print(paste0('Writing out init collapsed l2fc file to ', collapsed_l2fc_outpath))
+write_out_table(collapsed_l2fc, collapsed_l2fc_outpath)
+
 if (args$mt_filter) {
   message("Monotonicity QC filter: On")
   trt_cl_cols = unique(c(setdiff(sig_cols, c("pert_dose", "pert_dose_unit", "pert2_dose", "pert2_dose_unit")),
