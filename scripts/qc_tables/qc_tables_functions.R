@@ -25,7 +25,7 @@ get_outlier_pools = function(normalized_counts,
   outlier_pools_df = normalized_counts |>
     dplyr::filter(pert_type != "trt_cp") |>
     # Get median log2 norm for each cell line on each PCR plate
-    dplyr::group_by(across(all_of(c("pcr_plate", "pert_type", cell_line_cols)))) |>
+    dplyr::group_by(across(all_of(c("pcr_plate", "pert_type", "pert_name", "pert_dose", cell_line_cols)))) |>
     dplyr::mutate(med_log2_norm_n = median(log2_normalized_n, na.rm = TRUE)) |>
     # Ger spearman correlations betwen log2 norm and median cell line value
     dplyr::group_by(across(all_of(c(id_cols, pert_plate_col, "pert_type", pool_cols)))) |>
