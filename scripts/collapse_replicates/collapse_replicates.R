@@ -67,7 +67,7 @@ if (args$mt_filter) {
 
   # Check if any cell sets were dropped
   failed_cell_sets = flagged_trt_pools |>
-    dplyr::filter(cell_set_pass_ratio == 0) |>
+    dplyr::filter(cell_set_pass_ratio < 0.5) |>
     dplyr::distinct(dplyr::across(tidyselect::all_of(trt_cell_set_cols)))
 
   # Print out failing cell sets
