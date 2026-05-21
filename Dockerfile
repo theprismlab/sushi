@@ -59,3 +59,7 @@ COPY docker/install_packages.R /src/install_packages.R
 # 5. Install R dependencies
 RUN Rscript /src/install_packages.R
 
+# 6. Set build revision label (overrides base image label)
+ARG GIT_COMMIT=unknown
+LABEL org.opencontainers.image.revision="${GIT_COMMIT}"
+
