@@ -97,7 +97,8 @@ flag_breaks = function(monotonicity, trt_pool_cols, trt_cell_set_cols,
     dplyr::summarise(mean_valley = mean(valley, na.rm = TRUE),
                      mean_hill = mean(hill, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(pool_flag = ifelse(mean_valley > pool_cutoff, "Detected pool valley", NA),
-                  pool_flag = ifelse(mean_hill > mean_valley, "Detected pool hill", pool_flag)) |>
+                  pool_flag = ifelse(mean_hill > pool_cutoff & mean_hill > mean_valley,
+                                     "Detected pool hill", pool_flag)) |>
     dplyr::group_by(dplyr::across(tidyselect::all_of(trt_cell_set_cols))) |>
     dplyr::mutate(cell_set_pass_ratio = sum(is.na(pool_flag)) / dplyr::n(),
                   cell_set_flag = dplyr::case_when(
