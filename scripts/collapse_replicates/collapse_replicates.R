@@ -88,8 +88,7 @@ if (args$mt_filter) {
 
   failed_pools = flagged_trt_pools |> dplyr::filter(!is.na(cell_set_flag))
   message("Filtering out ", nrow(failed_pools), " pools from collapsed_l2fc")
-  join_cols = c("pert_plate", "pert_name", "pert_dose", "cell_set", "pool_id")
-  collapsed_l2fc = collapsed_l2fc |> dplyr::anti_join(failed_pools, by = join_cols)
+  collapsed_l2fc = collapsed_l2fc |> dplyr::anti_join(failed_pools, by = trt_pool_cols)
 } else {
   message("Monotonicity QC filter: Off")
 }
