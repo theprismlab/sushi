@@ -61,38 +61,51 @@ collapse_bio_reps= function(l2fc, sig_cols, cell_line_cols= c('depmap_id', 'lua'
 
 # Monotonicity qc
 # trt_cl_cols - sig cols without dose + cell line cols
-# trt_pool_cols - sig_cols and pool cols
-get_monotonicity = function(collapsed_l2fc, trt_cl_cols, trt_pool_cols) {
-  # Cell line level monotonicity
-  monotonicity_flags = collapsed_l2fc |>
-    dplyr::group_by(across(all_of(trt_cl_cols))) |>
+get_monotonicity = function(collapsed_l2fc, trt_cl_cols) {
+  monotonicity = collapsed_l2fc |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(trt_cl_cols))) |>
     dplyr::arrange(pert_dose, .by_group = TRUE) |>
     dplyr::mutate(# Identify prev and next dose and l2fc
                   prev_dose = dplyr::lag(pert_dose),
                   prev_l2fc = dplyr::lag(median_l2fc),
                   next_dose = dplyr::lead(pert_dose),
                   next_l2fc = dplyr::lead(median_l2fc),
-                  # Set flags for current dose
-                  flag.down = median_l2fc < -2,
-                  flag.up = median_l2fc > -1,
                   # Set flags for previous dose
-                  flag.down.prev = ifelse(is.na(prev_dose), FALSE, prev_l2fc < -2),
-                  flag.up.prev = ifelse(is.na(prev_dose), TRUE,  prev_l2fc > -1),
+                  prev_dose_down = ifelse(is.na(prev_dose), FALSE, prev_l2fc < -2),
+                  prev_dose_up = ifelse(is.na(prev_dose), TRUE,  prev_l2fc > -1),
+                  # Set flags for current dose
+                  curr_dose_down = median_l2fc < -2,
+                  curr_dose_up = median_l2fc > -1,
                   # Set flags for next dose
-                  flag.down.next = ifelse(is.na(next_dose), TRUE,  next_l2fc < -2),
-                  flag.up.next = ifelse(is.na(next_dose), FALSE, next_l2fc > -1),
-                  # Determine monotonicity for each row
-                  flag1 = flag.down & flag.up.next & flag.up.prev,
-                  flag2 = flag.up & flag.down.next & flag.down.prev) |>
+                  next_dose_down = ifelse(is.na(next_dose), TRUE,  next_l2fc < -2),
+                  next_dose_up = ifelse(is.na(next_dose), FALSE, next_l2fc > -1),
+                  # Determine monotonicity for each cell line
+                  valley = prev_dose_up & curr_dose_down & next_dose_up,
+                  hill = prev_dose_down & curr_dose_up & next_dose_down) |>
     dplyr::ungroup()
 
-  # Aggregate cell line level calls into a pool level flag
-  outlier_pools = monotonicity_flags |>
-    dplyr::group_by(across(all_of(trt_pool_cols))) |>
-    dplyr::summarise(n.f1 = mean(flag1, na.rm = TRUE),
-                     n.f2 = mean(flag2, na.rm = TRUE)) |>
-    dplyr::ungroup() |>
-    dplyr::mutate(outlier = pmax(n.f1, n.f2) > 0.25)
+  return(monotonicity)
+}
 
-  return(outlier_pools)
+# trt_pool_cols - sig_cols and pool cols
+# trt_cell_set_cols - sig_cols and cell_set
+flag_breaks = function(monotonicity, trt_pool_cols, trt_cell_set_cols,
+                       pool_cutoff = 0.25, cell_set_cutoff = 0.5) {
+  # Aggregate monotonicity breaks for each pool
+  pool_breaks = monotonicity |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(trt_pool_cols))) |>
+    dplyr::summarise(mean_valley = mean(valley, na.rm = TRUE),
+                     mean_hill = mean(hill, na.rm = TRUE), .groups = "drop") |>
+    dplyr::mutate(pool_flag = ifelse(mean_valley > pool_cutoff, "Detected pool valley", NA),
+                  pool_flag = ifelse(mean_hill > mean_valley, "Detected pool hill", pool_flag)) |>
+    dplyr::group_by(dplyr::across(tidyselect::all_of(trt_cell_set_cols))) |>
+    dplyr::mutate(cell_set_pass_ratio = sum(is.na(pool_flag)) / dplyr::n(),
+                  cell_set_flag = dplyr::case_when(
+                    !is.na(pool_flag) ~ pool_flag,
+                    cell_set_pass_ratio < cell_set_cutoff ~ "Several pools in cell_set break monotonicity",
+                    .default = NA
+                  )) |>
+    dplyr::ungroup()
+
+  return(pool_breaks)
 }
