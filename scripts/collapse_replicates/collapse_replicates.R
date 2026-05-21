@@ -42,15 +42,43 @@ collapsed_l2fc= collapse_bio_reps(l2fc= lfc_values, sig_cols= sig_cols, cell_lin
 
 # Write out initial collapsed_l2fc file
 collapsed_l2fc_outpath = file.path(args$out, "collapsed_l2fc_original.csv")
-print(paste0('Writing out init collapsed l2fc file to ', collapsed_l2fc_outpath))
+message("Writing out initial collapsed l2fc file to ", collapsed_l2fc_outpath)
 write_out_table(collapsed_l2fc, collapsed_l2fc_outpath)
 
 if (args$mt_filter) {
   message("Monotonicity QC filter: On")
   trt_cl_cols = unique(c(setdiff(sig_cols, c("pert_dose", "pert_dose_unit", "pert2_dose", "pert2_dose_unit")),
-                  cell_line_cols))
+                         cell_line_cols))
   trt_pool_cols = unique(c(sig_cols, intersect(cell_line_cols, c("cell_set", "pool_id"))))
   outlier_pool = get_monotonicity(collapsed_l2fc, trt_cl_cols = trt_cl_cols, trt_pool_cols = trt_pool_cols)
+
+  # Get sig cols with cell set
+  if ("cell_set" %in% sig_cols) {
+    grouping_cols = sig_cols
+  } else {
+    messsage("Attempting to add cell_set to sig_cols ...")
+    if ("cell_set" %in% names(collapsed_l2fc)) {
+      grouping_cols = c(sig_cols, "cell_set")
+    } else {
+      stop("Cannot find cell_set column.")
+    }
+  }
+
+  # Flag pert + cell sets with lots of flagged pools
+  outlier_pool = outlier_pool |>
+    dplyr::group_by(across(all_of(grouping_cols))) |>
+    dplyr::mutate(flag_pert = sum(outlier == TRUE) / dplyr::n() > 0.5,
+                  pool_flag = dplyr::case_when(outlier == TRUE ~ "Poor pool nonotonicity",
+                                               flag_pert == TRUE ~ "Several pools in pert failed monotonicity",
+                                               .default = NA))
+
+  # Note dropped perts
+  filtered_perts = outlier_pool |>
+    dplyr::filter(flag_pert == TRUE) |>
+    dplyr::distinct(across(all_of(grouping_cols)))
+  message("The following ", nrow(filtered_perts),
+          " pert + cell_set were dropped due to a large number of pools breaking monotonicity.")
+  print(filtered_perts)
 
   # Create a qc output directory if one does not exist
   if (!dir.exists(file.path(args$out, "qc_tables"))) {
@@ -71,7 +99,7 @@ if (args$mt_filter) {
 
 # Write out file ----
 collapsed_l2fc_outpath = file.path(args$out, args$collapsed_l2fc_file)
-print(paste0('Writing out collapsed l2fc file to ', collapsed_l2fc_outpath))
+message("Writing out collapsed l2fc file to ", collapsed_l2fc_outpath)
 write_out_table(collapsed_l2fc, collapsed_l2fc_outpath)
 
 # Ensure that collapsed file was successfully generated ----
