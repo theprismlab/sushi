@@ -30,6 +30,7 @@ get_outlier_pools = function(normalized_counts,
     # Ger spearman correlations betwen log2 norm and median cell line value
     dplyr::group_by(across(all_of(c(id_cols, pert_plate_col, "pert_type", pool_cols)))) |>
     dplyr::summarise(s_cor = cor(log2_normalized_n, med_log2_norm_n, use = "p", method = "s"),
+                     med_diff = median(log2_normalized_n - med_log2_norm_n, na.rm = TRUE),
                      abs_med_diff = abs(median(log2_normalized_n - med_log2_norm_n, na.rm = TRUE))) |>
     # Zscore correlations
     dplyr::group_by(across(all_of(c("pcr_plate", "pert_type", pool_cols)))) |>
