@@ -55,12 +55,12 @@ normalized_counts_rm_cbc = filter_control_barcodes(normalized_counts)
 # Outlier pools ----
 # Identify outlier pools
 outlier_pools = get_outlier_pools(normalized_counts_rm_cbc,
-                                  negcon = negcon,
-                                  poscon = poscon,
+                                  ctrl_types = c(negcon, poscon),
                                   id_cols = id_cols,
-                                  negcon_cols = negcon_cols,
+                                  pcr_plate_col = pcr_plate_col,
+                                  cell_line_cols = cell_line_cols,
                                   pool_cols = c("cell_set", "pool_id"),
-                                  cell_line_cols = cell_line_cols)
+                                  negcon_cols = negcon_cols)
 
 # Filter out poor pools
 flagged_pools = outlier_pools |> dplyr::filter(!is.na(plate_flag))

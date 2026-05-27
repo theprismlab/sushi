@@ -7,11 +7,11 @@ library(dplyr)
 
 # Check for outlier pools and wells with lots of outlier pools
 get_outlier_pools = function(normalized_counts,
-                             negcon = "ctl_vehicle",
-                             poscon = "trt_poscon",
+                             ctrl_types = c("ctl_vehicle", "trt_poscon"),
                              id_cols = c("pcr_plate", "pcr_well"),
-                             pool_cols = c("cell_set", "pool_id"),
+                             pcr_plate_col = "pcr_plate",
                              cell_line_cols = c("cell_set", "pool_id", "depmap_id", "lua"),
+                             pool_cols = c("cell_set", "pool_id"),
                              negcon_cols = c("cell_set", "day"),
                              log2_norm_col = "log2_normalized_n",
                              diff_threshold = 2,
@@ -20,17 +20,19 @@ get_outlier_pools = function(normalized_counts,
 
   message("get_outlier_pools column inputs ----")
   message("       id_cols: ", paste(id_cols, collapse = ", "))
-  message("     pool_cols: ", paste(pool_cols, collapse = ", "))
+  message(" pcr_plate_col: ", pcr_plate_col)
   message("cell_line_cols: ", paste(cell_line_cols, collapse = ", "))
-  message(".  negcon_cols: ", paste(negcon_cols, collapse = ", "))
+  message("     pool_cols: ", paste(pool_cols, collapse = ", "))
+  message("   negcon_cols: ", paste(negcon_cols, collapse = ", "))
+  message(" log2_norm_col: ", log2_norm_col)
 
   outlier_pools_df = normalized_counts |>
-    dplyr::filter(pert_type %in% c(negcon, poscon)) |>
+    dplyr::filter(pert_type %in% ctrl_types) |>
     # Get median log2 norm for each cell line in a specific control profile on a pcr plate
-    dplyr::group_by(across(all_of(unique(c("pcr_plate", "pert_type", negcon_cols, cell_line_cols))))) |>
+    dplyr::group_by(across(all_of(unique(c(pcr_plate_col, "pert_type", negcon_cols, cell_line_cols))))) |>
     dplyr::mutate(med_log2_norm_n = median(.data[[log2_norm_col]], na.rm = TRUE)) |>
     # Calculate median difference between a control sample pool and the median profile on that plate
-    dplyr::group_by(across(all_of(c(id_cols, pool_cols)))) |>
+    dplyr::group_by(across(all_of(unique(c(id_cols, pool_cols))))) |>
     dplyr::summarise(med_diff = median(.data[[log2_norm_col]] - med_log2_norm_n, na.rm = TRUE)) |>
     # Flag a pool if abs_med_diff is greater than threshold
     dplyr::mutate(abs_med_diff = abs(med_diff),
@@ -39,7 +41,7 @@ get_outlier_pools = function(normalized_counts,
     dplyr::group_by(across(all_of(id_cols))) |>
     dplyr::mutate(well_pass_ratio = mean(is.na(pool_flag))) |>
     # Check how many wells a pool is failing in and add pool/well level flags
-    dplyr::group_by(across(all_of(c("pcr_plate", pool_cols)))) |>
+    dplyr::group_by(across(all_of(c(pcr_plate_col, pool_cols)))) |>
     dplyr::mutate(pool_pass_ratio = mean(is.na(pool_flag)),
                   plate_flag = dplyr::case_when(well_pass_ratio < well_threshold ~ "Well has several failing pools",
                                                 pool_pass_ratio < plate_pool_threshold ~ "Pool fails in several wells",
