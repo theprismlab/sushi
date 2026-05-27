@@ -31,11 +31,13 @@ echo Rscript collapse_replicates/collapse_replicates.R -c $LFC	\
 --out $BUILD_DIR \
 --sig_cols $SIG_COLS \
 --cell_line_cols $CELL_LINE_COLS \
---collapsed_l2fc_file ${COLLAPSED_LFC}
+--collapsed_l2fc_file ${COLLAPSED_LFC} \
+--mt_filter ${MT_FILTER}
 
 
 Rscript collapse_replicates/collapse_replicates.R -c $LFC	\
 --out $BUILD_DIR \
 --sig_cols $SIG_COLS \
 --cell_line_cols $CELL_LINE_COLS \
---collapsed_l2fc_file ${COLLAPSED_LFC}
+--collapsed_l2fc_file ${COLLAPSED_LFC} \
+--mt_filter ${MT_FILTER}
