@@ -62,7 +62,7 @@ if (args$filter_failed_lines) {
 
   # Filter failing pools
   pool_qc = read_data_table(pool_qc_path)
-  join_cols = c("pert_plate", "pcr_plate", "pcr_well", "cell_set", "pool_id")
+  join_cols = intersect(colnames(pool_qc), colnames(normalized_counts))
   failed_pools = pool_qc |> dplyr::filter(!is.na(plate_flag)) |> dplyr::select(all_of(join_cols))
 
   message("Removing ", nrow(failed_pools), " failing pools ...")
