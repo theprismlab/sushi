@@ -105,7 +105,8 @@ plate_cell_table = plate_cell_qc_flags(
   error_rate_threshold = thresholds$error_rate_threshold,
   pc_viability_threshold = thresholds$pc_viability_threshold,
   nc_raw_count_threshold = thresholds$nc_raw_count_threshold,
-  contains_poscon = contains_poscon
+  contains_poscon = contains_poscon,
+  poscon = poscon, negcon = negcon
 )
 
 # Filter for failing cell lines

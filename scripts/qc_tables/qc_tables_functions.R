@@ -309,6 +309,7 @@ generate_plate_cell_table = function(normalized_counts, cell_line_cols, sig_cols
 #' @import dplyr
 
 plate_cell_qc_flags <- function(plate_cell_table,
+                                negcon, poscon,
                                 nc_variability_threshold = 1,
                                 error_rate_threshold = 0.05,
                                 pc_viability_threshold = 0.25,
@@ -318,17 +319,17 @@ plate_cell_qc_flags <- function(plate_cell_table,
   if (contains_poscon) {
     qc_table <- plate_cell_table |>
       mutate(qc_flag = case_when(
-        mad_log_normalized_ctl_vehicle > nc_variability_threshold ~ "nc_variability",
+        !!sym(paste0("mad_log_normalized_", negcon)) > nc_variability_threshold ~ "nc_variability",
         error_rate > error_rate_threshold ~ "error_rate",
-        viability_trt_poscon > pc_viability_threshold ~ "pc_viability",
-        median_raw_ctl_vehicle < log(nc_raw_count_threshold) ~ "nc_raw_count",
+        !!sym(paste0("viability_", poscon)) > pc_viability_threshold ~ "pc_viability",
+        !!sym(paste0("median_raw_", negcon)) < log(nc_raw_count_threshold) ~ "nc_raw_count",
         TRUE ~ NA_character_
       ))
   } else {
     qc_table <- plate_cell_table %>%
       mutate(qc_flag = case_when(
-        mad_log_normalized_ctl_vehicle > nc_variability_threshold ~ "nc_variability",
-        median_raw_ctl_vehicle < log(nc_raw_count_threshold) ~ "nc_raw_count",
+        !!sym(paste0("mad_log_normalized_", negcon)) > nc_variability_threshold ~ "nc_variability",
+        !!sym(paste0("median_raw_", negcon)) < log(nc_raw_count_threshold) ~ "nc_raw_count",
         TRUE ~ NA_character_
       ))
   }
