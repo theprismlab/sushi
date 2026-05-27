@@ -82,7 +82,7 @@ if (args$mt_filter) {
     dir.create(file.path(args$out, "qc_tables"))
   }
   # Write out outlier pool table as a csv
-  outlier_pool_outpath = file.path(args$out, "qc_tables", "outlier_trt_pools.csv")
+  outlier_pool_outpath = file.path(args$out, "qc_tables", "trt_pools_qc.csv")
   message("Writing out monotonicity filter file to ", outlier_pool_outpath)
   write_out_table(flagged_trt_pools, outlier_pool_outpath)
 
