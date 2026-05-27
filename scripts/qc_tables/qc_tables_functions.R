@@ -11,8 +11,7 @@ get_outlier_pools = function(normalized_counts,
                              pert_plate_col = "pert_plate",
                              pool_cols = c("cell_set", "pool_id"),
                              cell_line_cols = c("cell_set", "pool_id", "depmap_id", "lua"),
-                             med_log2_norm_diff = 1,
-                             scaled_r_threshold = -2,
+                             diff_threshold = 2,
                              well_pass_ratio = 0.75,
                              pool_pass_ratio = 0.75) {
 
@@ -27,18 +26,12 @@ get_outlier_pools = function(normalized_counts,
     # Get median log2 norm for each cell line on each PCR plate
     dplyr::group_by(across(all_of(c("pcr_plate", "pert_type", "pert_name", "pert_dose", cell_line_cols)))) |>
     dplyr::mutate(med_log2_norm_n = median(log2_normalized_n, na.rm = TRUE)) |>
-    # Ger spearman correlations betwen log2 norm and median cell line value
+    # Calculate median difference between a pool and the median plate profile
     dplyr::group_by(across(all_of(c(id_cols, pert_plate_col, "pert_type", pool_cols)))) |>
-    dplyr::summarise(s_cor = cor(log2_normalized_n, med_log2_norm_n, use = "p", method = "s"),
-                     med_diff = median(log2_normalized_n - med_log2_norm_n, na.rm = TRUE),
-                     abs_med_diff = abs(median(log2_normalized_n - med_log2_norm_n, na.rm = TRUE))) |>
-    # Zscore correlations
-    dplyr::group_by(across(all_of(c("pcr_plate", "pert_type", pool_cols)))) |>
-    dplyr::mutate(z_s_cor = c(scale(s_cor))) |>
-    dplyr::ungroup() |>
+    dplyr::summarise(med_diff = median(log2_normalized_n - med_log2_norm_n, na.rm = TRUE),
+                     abs_med_diff = abs(med_diff)) |>
     # QC threholds for pools in a well
-    dplyr::mutate(pool_flag = ifelse((abs_med_diff > med_log2_norm_diff) & (z_s_cor < scaled_r_threshold),
-                                     "pool failed", NA)) |>
+    dplyr::mutate(pool_flag = ifelse(abs_med_diff > diff_threshold, "pool failed", NA)) |>
     dplyr::group_by(across(all_of(id_cols))) |>
     dplyr::mutate(well.pass.ratio = sum(is.na(pool_flag) / dplyr::n())) |>
     dplyr::group_by(across(all_of(c("pcr_plate", pool_cols)))) |>
