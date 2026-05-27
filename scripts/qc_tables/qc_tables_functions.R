@@ -7,39 +7,43 @@ library(dplyr)
 
 # Check for outlier pools and wells with lots of outlier pools
 get_outlier_pools = function(normalized_counts,
+                             negcon = "ctl_vehicle",
+                             poscon = "trt_poscon",
                              id_cols = c("pcr_plate", "pcr_well"),
-                             pert_plate_col = "pert_plate",
                              pool_cols = c("cell_set", "pool_id"),
                              cell_line_cols = c("cell_set", "pool_id", "depmap_id", "lua"),
+                             negcon_cols = c("cell_set", "day"),
+                             log2_norm_col = "log2_normalized_n",
                              diff_threshold = 2,
-                             well_pass_ratio = 0.75,
-                             pool_pass_ratio = 0.75) {
+                             well_threshold = 0.75,
+                             plate_pool_threshold = 0.75) {
 
-  message("get_outlier_pools inputs ----")
+  message("get_outlier_pools column inputs ----")
   message("       id_cols: ", paste(id_cols, collapse = ", "))
-  message("pert_plate_col: ", pert_plate_col)
   message("     pool_cols: ", paste(pool_cols, collapse = ", "))
   message("cell_line_cols: ", paste(cell_line_cols, collapse = ", "))
+  message(".  negcon_cols: ", paste(negcon_cols, collapse = ", "))
 
   outlier_pools_df = normalized_counts |>
-    dplyr::filter(pert_type != "trt_cp") |>
-    # Get median log2 norm for each cell line on each PCR plate
-    dplyr::group_by(across(all_of(c("pcr_plate", "pert_type", "pert_name", "pert_dose", cell_line_cols)))) |>
-    dplyr::mutate(med_log2_norm_n = median(log2_normalized_n, na.rm = TRUE)) |>
-    # Calculate median difference between a pool and the median plate profile
-    dplyr::group_by(across(all_of(c(id_cols, pert_plate_col, "pert_type", pool_cols)))) |>
-    dplyr::summarise(med_diff = median(log2_normalized_n - med_log2_norm_n, na.rm = TRUE),
-                     abs_med_diff = abs(med_diff)) |>
-    # QC threholds for pools in a well
-    dplyr::mutate(pool_flag = ifelse(abs_med_diff > diff_threshold, "pool failed", NA)) |>
+    dplyr::filter(pert_type %in% c(negcon, poscon)) |>
+    # Get median log2 norm for each cell line in a specific control profile on a pcr plate
+    dplyr::group_by(across(all_of(unique(c("pcr_plate", "pert_type", negcon_cols, cell_line_cols))))) |>
+    dplyr::mutate(med_log2_norm_n = median(.data[[log2_norm_col]], na.rm = TRUE)) |>
+    # Calculate median difference between a control sample pool and the median profile on that plate
+    dplyr::group_by(across(all_of(c(id_cols, pool_cols)))) |>
+    dplyr::summarise(med_diff = median(.data[[log2_norm_col]] - med_log2_norm_n, na.rm = TRUE)) |>
+    # Flag a pool if abs_med_diff is greater than threshold
+    dplyr::mutate(abs_med_diff = abs(med_diff),
+                  pool_flag = ifelse(abs_med_diff > diff_threshold, "pool failed", NA)) |>
+    # Check how many pools in a well are flagged
     dplyr::group_by(across(all_of(id_cols))) |>
-    dplyr::mutate(well.pass.ratio = sum(is.na(pool_flag) / dplyr::n())) |>
+    dplyr::mutate(well_pass_ratio = mean(is.na(pool_flag))) |>
+    # Check how many wells a pool is failing in and add pool/well level flags
     dplyr::group_by(across(all_of(c("pcr_plate", pool_cols)))) |>
-    # QC thresholds for PCR wells
-    dplyr::mutate(pool.pass.ratio = sum(is.na(pool_flag) / dplyr::n()),
-                  well_flag = dplyr::case_when(well.pass.ratio < well_pass_ratio ~ "Well has several failing pools",
-                                               pool.pass.ratio < pool_pass_ratio ~ "Pool fails in several wells",
-                                               .default = pool_flag)) |>
+    dplyr::mutate(pool_pass_ratio = mean(is.na(pool_flag)),
+                  plate_flag = dplyr::case_when(well_pass_ratio < well_threshold ~ "Well has several failing pools",
+                                                pool_pass_ratio < plate_pool_threshold ~ "Pool fails in several wells",
+                                                .default = pool_flag)) |>
     dplyr::ungroup()
 
   return(outlier_pools_df)

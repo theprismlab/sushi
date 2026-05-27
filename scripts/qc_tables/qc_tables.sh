@@ -31,6 +31,7 @@ args=(
 --qc_params "${QC_PARAMS}"
 --id_cols "${ID_COLS}"
 --cell_line_cols "${CELL_LINE_COLS}"
+--negcon_cols "${CONTROL_COLS}"
 --sig_cols "${SIG_COLS}"
 --pseudocount "${PSEUDOCOUNT}"
 --negcon_type "${CTL_TYPES}"
