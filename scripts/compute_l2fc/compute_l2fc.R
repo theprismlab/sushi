@@ -71,6 +71,7 @@ if (args$filter_failed_lines) {
   message("Skipping pool filters ...")
 }
 
+# Compute log2 fold changes ----
 print("Collapsing tech reps and computing log-fold change ...")
 l2fc= compute_l2fc(normalized_counts= normalized_counts,
                    control_type= control_type,

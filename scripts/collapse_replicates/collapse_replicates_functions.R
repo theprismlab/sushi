@@ -1,9 +1,9 @@
 #' validate_num_bio_reps
-#' 
-#' Function that checks if biological replicates were collapsed by comparing the 
+#'
+#' Function that checks if biological replicates were collapsed by comparing the
 #' number of unique bio_rep annotations (for example 1, 2, 3 or A, B, C) to the
 #' maximum number of biological replicates that were collapsed into a value.
-#' 
+#'
 #' @param num_unique_bio_reps A dataframe with the columns "flowcell_name" and "flowcell_lane".
 #' @param max_bio_rep_count A dataframe with the columns "flowcell_name" and "flowcell_lane".
 validate_num_bio_reps= function(num_unique_bio_reps, max_bio_rep_count) {
@@ -23,7 +23,7 @@ validate_num_bio_reps= function(num_unique_bio_reps, max_bio_rep_count) {
 #' Collapses the l2fc values of biological replicates for treatment conditions and
 #' computes the MAD/sqrt(n).
 #'
-#' @param l2fc Dataframe of l2fc values The following columns are required -
+#' @param l2fc Dataframe of l2fc values. The following columns are required -
 #'              depmap_id, lua, counts_flag, mean_n, mean_normalized_n, and l2fc.
 #' @param sig_cols List of columns that define an individual condition. This should not include any replicates.
 #'                  The columns in this list should be present in the l2fc dataframe.
@@ -59,8 +59,14 @@ collapse_bio_reps= function(l2fc, sig_cols, cell_line_cols= c('depmap_id', 'lua'
   return(collapsed_counts)
 }
 
-# Monotonicity qc
-# trt_cl_cols - sig cols without dose + cell line cols
+#' Check dose monotonicity
+#'
+#' Checks for monotonicity breaks across all cell lines in each perturbation.
+#'
+#' @param collapsed_l2fc Dataframe of collapsed l2fc values in the column median_l2fc.
+#' @param trt_cl_cols List of column names in collapsed_l2fc that describe a unique cell line across all doses
+#'                    of a perturbation.
+#' @returns Dataframe
 get_monotonicity = function(collapsed_l2fc, trt_cl_cols) {
   monotonicity = collapsed_l2fc |>
     dplyr::group_by(dplyr::across(tidyselect::all_of(trt_cl_cols))) |>
@@ -89,6 +95,19 @@ get_monotonicity = function(collapsed_l2fc, trt_cl_cols) {
 
 # trt_pool_cols - sig_cols and pool cols
 # trt_cell_set_cols - sig_cols and cell_set
+
+#' Flag monotonicity breaks
+#'
+#' Flags monotonicity breaks in cell lines and summarizes breaks across pools and cell sets.
+#'
+#' @param monotonicity Dataframe of monotonicity booleans from get_monotonicty.
+#' @param trt_pool_cols List of column names in the monotonicity datafame that describe a unique pool in each
+#'                      dose level perturbation. This is usually the sig_cols with pool columns.
+#' @param trt_cell_set_cols List of column names in the monotonicity dataframe that describe a unique cell set in
+#'                          each dose level perturbation. This is usually the sig_cols with the cell set column.
+#' @param pool_cutoff Numeric describing the fraction of failing cell lines required to fail a pool.
+#' @param cell_set_cutoff Numeric describing the fraction of failing pools required to fail a cell set.
+#' @returns Dataframe
 flag_breaks = function(monotonicity, trt_pool_cols, trt_cell_set_cols,
                        pool_cutoff = 0.25, cell_set_cutoff = 0.5) {
   # Aggregate monotonicity breaks for each pool

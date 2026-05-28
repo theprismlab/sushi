@@ -6,6 +6,28 @@ library(PRROC)
 library(dplyr)
 
 # Check for outlier pools and wells with lots of outlier pools
+#' Identify outlier pools
+#'
+#' This function checks for any outlier pools within the positive and negatic controls.
+#' Outlier pools are defined as pools with a absolute median difference greater than 2
+#' when compared to the median control profile in log2 normalized n space.
+#'
+#' @param normalized_counts Dataframe of normalized read counts.
+#' @param ctrl_types List of values in the pert type column that describe the positive and negative controls.
+#' @param id_cols List of column names in normalized_counts that describe a unique PCR well.
+#' @param pcr_plate_col String column name in normalized_counts that describe a PRC plate.
+#' @param cell_line_cols List of column names in normalized_counts that describe unique cell lines.
+#' @param pool_cols List of columns names in normalized_counts that describe unique pools.
+#'                  This may be a subset of cell_line_cols.
+#' @param negcon_cols List of columns in normalized_counts that describe unique negative control conditions.
+#' @param log2_norm_col String column name in normalized_counts of the log2 normalize values.
+#' @param diff_threshold Numeric value describing the absolute median difference cut off.
+#'                       Differences greater than this value will be flagged.
+#' @param well_threshold Numeric value describing the fraction of pools in a PCR well that need to fail
+#'                       in order for the well to be flagged as a failed.
+#' @param plate_pool_threshold Numeric value describing the fraction of pools on a PCR plate that need to fail
+#'                             in order for the pool to be flagged as failed on the entire plate.
+#' @return Dataframe
 get_outlier_pools = function(normalized_counts,
                              ctrl_types = c("ctl_vehicle", "trt_poscon"),
                              id_cols = c("pcr_plate", "pcr_well"),
