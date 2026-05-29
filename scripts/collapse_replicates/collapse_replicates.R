@@ -58,7 +58,7 @@ if (args$mt_filter == TRUE) {
   if ("cell_set" %in% sig_cols) {
     trt_cell_set_cols = sig_cols
   } else {
-    messsage("Attempting to add cell_set to sig_cols ...")
+    message("Attempting to add cell_set to sig_cols ...")
     if ("cell_set" %in% names(collapsed_l2fc)) {
       trt_cell_set_cols = c(sig_cols, "cell_set")
     } else {
