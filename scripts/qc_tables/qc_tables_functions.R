@@ -285,7 +285,6 @@ generate_plate_cell_table = function(normalized_counts,
   } else {
     message("No poscon condition detected. Error rate and poscon_l2fc QCs will not be generated.")
     plate_cell_table = cell_line_meds_mads |>
-      dplyr::left_join(optional_meta, by = c(pcr_plate_col, pert_plate_col)) |>
       dplyr::left_join(med_trt_bio_reps, by = ctrl_cell_line_cols) |>
       dplyr::mutate(qc_pass = .data[[paste0("median_raw_", negcon)]] > nc_raw_count_threshold &
                       .data[[paste0("mad_log_normalized_", negcon)]] < nc_variability_threshold)
