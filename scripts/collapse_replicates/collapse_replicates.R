@@ -46,6 +46,12 @@ write_out_table(collapsed_l2fc, collapsed_l2fc_outpath)
 
 if (args$mt_filter == TRUE) {
   message("Monotonicity QC filter: On")
+
+  # Quick check that data is not CPS!
+  if (any(c("pert2_id", "pert2_name", "pert2_dose") %in% colnames(collapsed_l2fc))) {
+    stop("Found some pert2 related columns - monotonicity filter should NOT be used for CPS!")
+  }
+
   # Set up lists of column names for inputs
   trt_cl_cols = unique(c(setdiff(sig_cols, c("pert_dose", "pert_dose_unit", "pert2_dose", "pert2_dose_unit")),
                          cell_line_cols))
