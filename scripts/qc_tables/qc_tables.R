@@ -89,7 +89,7 @@ plate_cell_table = generate_plate_cell_table(
   negcon_cols = negcon_cols,
   pcr_plate_col = pcr_plate_col,
   pert_plate_col = pert_plate_col,
-  optional_cols = c("project_code", "day"),
+  optional_cols = c("project_code"),
   pseudocount = pseudocount,
   contains_poscon = contains_poscon,
   poscon = poscon, negcon = negcon,
