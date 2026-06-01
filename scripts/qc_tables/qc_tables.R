@@ -86,7 +86,7 @@ ctrl_cell_line_cols = unique(c("project_code", "pert_plate", "pcr_plate", negcon
 
 # Check any ctrl_cell_line_cols are missing
 missing_cols = setdiff(ctrl_cell_line_cols, colnames(norm_counts_filt_pools))
-if (nrow(missing_cols) > 0) {
+if (length(missing_cols) > 0) {
   message("The normalized counts table is missing the following columns: ", paste(missing_cols, collapse = ", "))
 }
 # Generate plate cell QCs
