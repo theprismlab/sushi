@@ -216,7 +216,7 @@ compute_med_trt_bio_rep = function(df, plate_cell_line_cols, sig_cols) {
 #' - Fractions of reads contributed by each cell line.
 #'
 #' @import dplyr
-generate_plate_cell_table = function(normalized_counts, cell_line_cols, sig_cols,
+generate_plate_cell_table = function(normalized_counts, cell_line_cols, sig_cols, negcon_cols,
                                      pseudocount = 20, contains_poscon = TRUE,
                                      pcr_plate_col = "pcr_plate",
                                      pert_plate_col = "pert_plate",
@@ -226,13 +226,15 @@ generate_plate_cell_table = function(normalized_counts, cell_line_cols, sig_cols
                                      nc_variability_threshold = 1, error_rate_threshold = 0.05,
                                      pc_viability_threshold = 0.25, nc_raw_count_threshold = 40) {
   message("generate_plate_cell_table inputs ...")
-  message("  cell_line_cols: ", paste(cell_line_cols, collapse = ", "))
-  message("   pcr_plate_col: ", pcr_plate_col)
-  message("  pert_plate_col: ", pert_plate_col)
-  message("       pert_type: pert_type (hard coded)")
-  message("   optional_cols: ", paste(optional_cols, collapse = ", "))
-  plate_cell_line_cols = c(cell_line_cols, pcr_plate_col, pert_plate_col, "day")
-  # Day col is needed for EPS data
+  message("cell_line_cols: ", paste(cell_line_cols, collapse = ", "))
+  message("  control_cols: ", paste(negcon_cols, collapse = ", "))
+  message(" pcr_plate_col: ", pcr_plate_col)
+  message("pert_plate_col: ", pert_plate_col)
+  message("     pert_type: pert_type (hard coded)")
+  message(" optional_cols: ", paste(optional_cols, collapse = ", "))
+
+  # Create list of columns to use for grouping
+  plate_cell_line_cols = unique(c(cell_line_cols, pcr_plate_col, pert_plate_col, negcon_cols))
 
   # Check that columns used in this module are in normalized counts
   missing_cols = setdiff(c(plate_cell_line_cols, "pert_type"), colnames(normalized_counts))
@@ -278,7 +280,7 @@ generate_plate_cell_table = function(normalized_counts, cell_line_cols, sig_cols
     # Join tables together and calculate poscon l2fc
     message("Left joining tables ...")
     plate_cell_table = cell_line_meds_mads |>
-      dplyr::left_join(optional_meta, by = c(pcr_plate_col, pert_plate_col, "day")) |>
+      dplyr::left_join(optional_meta, by = c(pcr_plate_col, pert_plate_col)) |>
       dplyr::left_join(med_trt_bio_reps, by = plate_cell_line_cols) |>
       dplyr::left_join(error_rates, by = plate_cell_line_cols) |>
       dplyr::mutate(lfc_trt_poscon = .data[[paste0("median_log_normalized_", poscon)]] -
@@ -292,7 +294,7 @@ generate_plate_cell_table = function(normalized_counts, cell_line_cols, sig_cols
   } else {
     message("No poscon condition detected. Error rate and poscon_l2fc QCs will not be generated.")
     plate_cell_table = cell_line_meds_mads |>
-      dplyr::left_join(optional_meta, by = c(pcr_plate_col, pert_plate_col, "day")) |>
+      dplyr::left_join(optional_meta, by = c(pcr_plate_col, pert_plate_col)) |>
       dplyr::left_join(med_trt_bio_reps, by = plate_cell_line_cols) |>
       dplyr::mutate(qc_pass = .data[[paste0("median_raw_", negcon)]] > nc_raw_count_threshold &
                       .data[[paste0("mad_log_normalized_", negcon)]] < nc_variability_threshold)

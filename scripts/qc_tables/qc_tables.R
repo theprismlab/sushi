@@ -86,6 +86,7 @@ plate_cell_table = generate_plate_cell_table(
   normalized_counts = norm_counts_filt_pools,
   cell_line_cols = cell_line_cols,
   sig_cols = sig_cols,
+  negcon_cols = negcon_cols,
   pcr_plate_col = pcr_plate_col,
   pert_plate_col = pert_plate_col,
   optional_cols = c("project_code", "day"),
