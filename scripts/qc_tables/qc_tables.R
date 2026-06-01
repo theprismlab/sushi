@@ -81,15 +81,21 @@ write_out_table(table = flagged_pools, path = pool_well_qc_flags_outpath)
 check_file_exists(pool_well_qc_flags_outpath)
 
 # Plate cell line QCs ----
+# List of columns describing cell lines of each control condition on a PCR plate along with some metadata columns
+ctrl_cell_line_cols = unique(c("project_code", "pert_plate", "pcr_plate", negcon_cols, cell_line_cols))
+
+# Check any ctrl_cell_line_cols are missing
+missing_cols = setdiff(ctrl_cell_line_cols, colnames(norm_counts_filt_pools))
+if (nrow(missing_cols) > 0) {
+  message("The normalized counts table is missing the following columns: ", paste(missing_cols, collapse = ", "))
+}
 # Generate plate cell QCs
 plate_cell_table = generate_plate_cell_table(
   normalized_counts = norm_counts_filt_pools,
+  ctrl_cell_line_cols = ctrl_cell_line_cols,
   cell_line_cols = cell_line_cols,
   sig_cols = sig_cols,
-  negcon_cols = negcon_cols,
-  pcr_plate_col = pcr_plate_col,
-  pert_plate_col = pert_plate_col,
-  optional_cols = c("project_code"),
+  pert_plate_col = "pert_plate",
   pseudocount = pseudocount,
   contains_poscon = contains_poscon,
   poscon = poscon, negcon = negcon,
