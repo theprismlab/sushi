@@ -25,7 +25,7 @@ library(dplyr)
 #' @return A data frame summarizing read statistics for each group, including total reads, expected reads,
 #'         control barcode reads, recovered cell lines, and their fractions.
 compute_read_stats = function(unknown_counts, annotated_counts,
-                              group_cols = c("pert_plate", "pcr_plate", "pcr_plate", "pert_type", "cell_set"),
+                              group_cols = c("pert_plate", "pcr_plate", "pcr_well", "pert_type", "cell_set"),
                               cell_line_cols = c("cell_set", "pool_id", "depmap_id", "lua"),
                               cell_set_col = "cell_set",
                               metric = "n",
