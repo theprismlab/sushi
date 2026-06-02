@@ -152,7 +152,7 @@ if (contains_poscon) {
 missing_cols = setdiff(columns_to_write, colnames(plate_cell_table))
 if (length(missing_cols) > 0) {
   message("The following columns are missing from plate_cell_qc_table: ")
-  message("  ", paste(missing_cols, sep = ", "))
+  message("  ", paste(missing_cols, collapse = ", "))
   warning("plate_cell_qc_table may contain missing columns!")
 }
 write_out_table(table = plate_cell_table |> dplyr::select(any_of(columns_to_write)),
