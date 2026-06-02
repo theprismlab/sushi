@@ -30,7 +30,7 @@ parser$add_argument("-ccn", "--count_col_name", default = "log2_normalized_n",
 parser$add_argument("-ff", "--filter_failed_lines", type = "logical",
                     help = "Filter out failed cell lines from the output file")
 parser$add_argument("--pool_qc_path", default = "", help = "Path to pool level QC file")
-parser$add_argument("--plate_cell_qc_path", default = "", help = "Path to pool level QC file")
+parser$add_argument("--plate_cell_qc_path", default = "", help = "Path to plate cell QC file")
 parser$add_argument("-o", "--out", default = getwd(), help = "Output path. Default is working directory")
 parser$add_argument("--output_file", default = "l2fc.csv", help = "Name of file to output l2fc values")
 

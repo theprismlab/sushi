@@ -27,7 +27,7 @@ parser$add_argument("-o", "--out", default = getwd(), help = "Output path. Defau
 args = parser$parse_args()
 
 # Read in files and set up parameters ----
-message("Reading in normalized_counts from", args$normalized_counts, "...")
+message("Reading in normalized_counts from ", args$normalized_counts, "...")
 normalized_counts = read_data_table(args$normalized_counts)
 message("Reading in qc_thresholds from ", args$qc_params, "...")
 thresholds = load_thresholds_from_json(args$qc_params)
@@ -95,7 +95,7 @@ plate_cell_table = generate_plate_cell_table(
   ctrl_cell_line_cols = ctrl_cell_line_cols,
   cell_line_cols = cell_line_cols,
   sig_cols = sig_cols,
-  pert_plate_col = "pert_plate",
+  pert_plate_col = pert_plate_col,
   pseudocount = pseudocount,
   contains_poscon = contains_poscon,
   poscon = poscon, negcon = negcon,
