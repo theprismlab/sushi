@@ -145,7 +145,7 @@ write_out_table(table = trt_synergy, path = outpath)
 # Write out mean synergy score per cell line
 mss = trt_synergy |>
   dplyr::group_by(across(all_of(unique(c(sig_cols_wo_dose, args$cell_line_cols))))) |>
-  dplyr::summarise(mss = mean(synergy_score, na.rm = TRUE), .groups = "drop")
+  dplyr::summarise(mss = mean(synergy, na.rm = TRUE), .groups = "drop")
 
 outpath = file.path(args$out, args$out_mss)
 print(paste0("Writing out synergy file to ", outpath))
