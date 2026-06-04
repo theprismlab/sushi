@@ -39,9 +39,10 @@ parser$add_argument("--n_samples", default = 10000, help = "Size of the resampli
 # Used to create mock DMSO l2fcs
 parser$add_argument("--negcon_type", default = "ctl_vehicle",
                     help = "String in pert_type that identifies the negative control")
-# Name of synergy output
-parser$add_argument("--output_file", default = "synergy_scores.csv", help = "File to output synergy scores")
+# Outputs
 parser$add_argument("-o", "--out", default = "", help = "Output path, defaults to working directory")
+parser$add_argument("--out_synergy", default = "synergy_scores.csv", help = "File to output synergy scores")
+parser$add_argument("--out_mss", default = "mean_synergy_score.csv", help = "File to output mean synergy scores")
 
 args = parser$parse_args()
 
@@ -137,8 +138,17 @@ sig_cols_wo_dose = args$sig_cols[!grepl("_dose", args$sig_cols)]
 trt_synergy[, num_sig_profiles := sum(q_val < 0.005), by = c(args$cell_line_cols, sig_cols_wo_dose)]
 
 # Write out file ----
-outpath = file.path(args$out, args$output_file)
+outpath = file.path(args$out, args$out_synergy)
 print(paste0("Writing out synergy file to ", outpath))
 write_out_table(table = trt_synergy, path = outpath)
+
+# Write out mean synergy score per cell line
+mss = trt_synergy |>
+  dplyr::group_by(across(all_of(unique(c(sig_cols_wo_dose, args$cell_line_cols))))) |>
+  dplyr::summarise(mss = mean(synergy_score, na.rm = TRUE), .groups = "drop")
+
+outpath = file.path(args$out, args$out_mss)
+print(paste0("Writing out synergy file to ", outpath))
+write_out_table(table = mss, path = outpath)
 
 # End ----
