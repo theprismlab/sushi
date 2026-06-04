@@ -99,6 +99,8 @@ id_cols_table = generate_id_cols_table(
   cb_mae_threshold = thresholds$cb_mae_threshold
 )
 
+message("TROUBLESHOOTING: contamination_threshold ", thresholds$contamination_threshold)
+
 # Identify poor performing wells to drop
 id_cols_qc_flags_table = id_cols_qc_flags(
   id_cols_table = id_cols_table,

@@ -286,6 +286,8 @@ id_cols_qc_flags <- function(id_cols_table,
                              cb_cl_ratio_low_poscon = 0.5,
                              cb_cl_ratio_high_poscon = 2,
                              well_reads_threshold = 40) {
+
+  message("TROUBLESHOOTING: contamination_threshold ", contamination_threshold)
   # Add a qc_flag column using case_when (conditions are checked in order)
   qc_table <- id_cols_table %>%
     mutate(qc_flag = case_when(
