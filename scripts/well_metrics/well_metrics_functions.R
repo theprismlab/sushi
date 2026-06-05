@@ -484,10 +484,7 @@ compute_contamination_qc_tables <- function(prism_barcode_counts,
     pull(forward_read_barcode) %>%
     unique()
 
-  unexpected_cell_lines <- cell_line_meta %>%
-    anti_join(cell_set_and_pool_meta, by = "depmap_id") %>%
-    pull(forward_read_barcode) %>%
-    unique()
+  unexpected_cell_lines <- unique(cell_line_meta$forward_read_barcode)
 
   # --- 4. Annotate the counts with the read type ---
   total_counts_with_read_type <- total_counts %>%
