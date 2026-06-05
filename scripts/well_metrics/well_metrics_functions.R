@@ -461,10 +461,10 @@ compute_contamination_qc_tables <- function(prism_barcode_counts,
                                             id_cols = c("pcr_plate", "pcr_well")) {
   # --- 0. Ensure all required columns are present ---
   prism_barcode_counts_all <- prism_barcode_counts %>%
-    dplyr::left_join(sample_meta %>% select(pcr_plate, pcr_well, pert_plate), by = id_cols)
+    dplyr::left_join(sample_meta %>% select(pcr_plate, pcr_well, pert_plate, cell_set), by = id_cols)
 
   unknown_barcode_counts_all <- unknown_barcode_counts %>%
-    dplyr::left_join(sample_meta %>% select(pcr_plate, pcr_well, pert_plate), by = id_cols)
+    dplyr::left_join(sample_meta %>% select(pcr_plate, pcr_well, pert_plate, cell_set), by = id_cols)
 
   # --- 1. Create total counts df with known and unknown barcodes ---
   total_counts <- bind_rows(prism_barcode_counts_all, unknown_barcode_counts_all)
@@ -477,8 +477,8 @@ compute_contamination_qc_tables <- function(prism_barcode_counts,
   # --- 3. Get a list of expected reads ---
   expected_cell_lines <- cell_set_and_pool_meta %>%
     left_join(cell_line_meta, by = c("depmap_id", "lua")) %>%
-    pull(forward_read_barcode) %>%
-    unique()
+    dplyr::distinct(cell_set, forward_read_barcode) %>%
+    dplyr::mutate(read_type = "expected_cell_line")
 
   expected_controls <- cb_meta %>%
     pull(forward_read_barcode) %>%
@@ -491,15 +491,14 @@ compute_contamination_qc_tables <- function(prism_barcode_counts,
 
   # --- 4. Annotate the counts with the read type ---
   total_counts_with_read_type <- total_counts %>%
-    mutate(
-      read_type = case_when(
-        forward_read_barcode %in% expected_cell_lines ~ "expected_cell_line",
-        forward_read_barcode %in% expected_controls ~ "control",
-        forward_read_barcode %in% unexpected_cell_lines ~ "unexpected_cell_line",
-        forward_read_barcode == "unknown_low_abundance_barcode" ~ "unknown_low_abundance",
-        TRUE ~ "unknown_barcode" # otherwise() is equivalent to TRUE ~
-      )
-    )
+    dplyr::left_join(expected_cell_lines, by = c("forward_read_barcode", "cell_set")) |>
+    dplyr::mutate(read_type = dplyr::case_when(
+      !is.na(read_type) ~ read_type,
+      forward_read_barcode %in% expected_controls ~ "control",
+      forward_read_barcode %in% unexpected_cell_lines ~ "unexpected_cell_line",
+      forward_read_barcode == "unknown_low_abundance_barcode" ~ "unknown_low_abundance",
+      .default = "unknown_barcode"
+    ))
 
   # --- 5. Annotate with sample metadata ---
   total_counts_with_read_type_annotated <- total_counts_with_read_type %>%
