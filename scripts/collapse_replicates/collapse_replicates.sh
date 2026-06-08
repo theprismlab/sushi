@@ -27,17 +27,17 @@ fi
 echo Build dir is: $BUILD_DIR
 echo LFC is: $LFC
 
-echo Rscript collapse_replicates/collapse_replicates.R -c $LFC	\
---out $BUILD_DIR \
---sig_cols $SIG_COLS \
---cell_line_cols $CELL_LINE_COLS \
---collapsed_l2fc_file ${COLLAPSED_LFC} \
---mt_filter ${MT_FILTER}
+args=(
+--lfc "${LFC}"
+--screen_type "${SCREEN_TYPE}" 
+--out "${BUILD_DIR}"
+--sig_cols "${SIG_COLS}"
+--cell_line_cols "${CELL_LINE_COLS}"
+--collapsed_l2fc_file "${COLLAPSED_LFC}"
+--mt_filter "${MT_FILTER}"
+)
 
-
-Rscript collapse_replicates/collapse_replicates.R -c $LFC	\
---out $BUILD_DIR \
---sig_cols $SIG_COLS \
---cell_line_cols $CELL_LINE_COLS \
---collapsed_l2fc_file ${COLLAPSED_LFC} \
---mt_filter ${MT_FILTER}
+echo "Running Rscript with the following arguments:"
+printf '%q ' Rscript collapse_replicates/collapse_replicates.R "${args[@]}"
+echo ""
+Rscript collapse_replicates/collapse_replicates.R "${args[@]}"

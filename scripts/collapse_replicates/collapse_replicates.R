@@ -14,6 +14,7 @@ parser$add_argument("-v", "--verbose", action= "store_true", default= TRUE,
                     help= "Print extra output [default]")
 parser$add_argument("-q", "--quietly", action= "store_false", dest= "verbose", 
                     help= "Print little output")
+parser$add_argument("--screen_type", default = "", help = "Type of PRISM screen.")
 parser$add_argument("-c", "--lfc", default= "l2fc.csv",
                     help= "path to file containing l2fc values")
 parser$add_argument("--sig_cols", default= "cell_set,pert_name,pert_dose,pert_dose_unit,day,pert_vehicle",
@@ -48,9 +49,10 @@ write_out_table(collapsed_l2fc, collapsed_l2fc_outpath)
 if (args$mt_filter == TRUE) {
   message("Monotonicity QC filter: On")
 
-  # Quick check that data is not CPS!
-  if (any(c("pert2_id", "pert2_name", "pert2_dose") %in% colnames(collapsed_l2fc))) {
-    stop("Found some pert2 related columns - monotonicity filter should NOT be used for CPS!")
+  # Throw large error if the screen type is not MTS!
+  if (args$screen_type %in% c("MTS_SEQ", "APS_SEQ")) {
+    message("Detected screen type ", args$screen_type, " Monotonicity filter should only be use for MTS or APS.")
+    stop("Filter NOT normally used for ", args$screen_type)
   }
 
   # Set up lists of column names for inputs
