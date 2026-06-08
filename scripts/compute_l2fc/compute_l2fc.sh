@@ -34,7 +34,7 @@ args=(
 --output_file "${LFC}"
 --out "$BUILD_DIR"
 --control_type "$CTL_TYPES"
---count_col_name "$COUNT_COL_NAME"
+--log2_norm_col "$COUNT_COL_NAME"
 --sig_cols "$SIG_COLS"
 --bio_rep_col "${BIO_REP_COL}"
 --ctrl_cols "$CONTROL_COLS"

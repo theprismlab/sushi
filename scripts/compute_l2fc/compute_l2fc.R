@@ -22,10 +22,10 @@ parser$add_argument("--cell_line_cols", default = "cell_set,pool_id,depmap_id,lu
                     help = "Columns that describe a unique cell line")
 parser$add_argument("--sig_cols", default = "pert_name,pert_dose,pert_dose_unit,day",
                     help = "Columns that identify unique perturbations")
-parser$add_argument("--ctrl_cols", default = "cell_set,day",
+parser$add_argument("--ctrl_cols", default = "cell_set,day,pcr_plate,replicate_plate,pert_vehicle",
                     help = "Columns used to identify unique control groups")
 parser$add_argument("--bio_rep_col", default = "", help = "Column describing the biological replicate.")
-parser$add_argument("-ccn", "--count_col_name", default = "log2_normalized_n",
+parser$add_argument("--log2_norm_col", default = "log2_normalized_n",
                     help = "column containing counts with which to calculate l2fc")
 parser$add_argument("-ff", "--filter_failed_lines", type = "logical",
                     help = "Filter out failed cell lines from the output file")
@@ -44,7 +44,7 @@ ctrl_cols = unlist(strsplit(args$ctrl_cols, ","))
 sig_cols = unlist(strsplit(args$sig_cols, ","))
 bio_rep_col = args$bio_rep_col
 control_type = args$control_type
-count_col_name = args$count_col_name
+log2_norm_col = args$log2_norm_col
 pool_qc_path = args$pool_qc_path
 plate_cell_qc_path = args$plate_cell_qc_path
 
@@ -78,7 +78,7 @@ l2fc= compute_l2fc(normalized_counts= normalized_counts,
                    sig_cols= sig_cols,
                    bio_rep_col = bio_rep_col,
                    ctrl_cols= ctrl_cols,
-                   count_col_name= count_col_name,
+                   log2_norm_col= log2_norm_col,
                    cell_line_cols= cell_line_cols)
 
 # If filter_failed_lines is TRUE, filter out failed cell lines from the output file ----

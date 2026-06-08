@@ -10,7 +10,7 @@
 #'                    cell_set,pert_name,dose,dose_unit,day by default.
 #' @param ctrl_cols - a vector of column names denoting which values specify each individual control condition
 #'                    cell_set,day by default.
-#' @param count_col_name - a string containing the name of the column to use as counts to calculate l2fc values. 
+#' @param log2_norm_col - a string containing the name of the column to use as counts to calculate l2fc values.
 #'          Generally log2_normalized_n if running on normalized_counts or n if running on filtered_counts
 #' @param cell_line_cols - Vector of columns that define a cell line. Defaults to lua, depmap_id, and pool_id
 #' @return - l2fc data.frame with l2fc column
@@ -20,7 +20,7 @@ compute_l2fc= function(normalized_counts,
                        sig_cols=c('cell_set','pert_name','pert_dose','pert_dose_unit','day'),
                        bio_rep_col = "bio_rep",
                        ctrl_cols= c('cell_set', 'day'), # will probably be a subset of sig_cols
-                       count_col_name="log2_normalized_n",
+                       log2_norm_col="log2_normalized_n",
                        cell_line_cols= c('lua', 'depmap_id', 'pool_id')) {
   
   # Validation: Check that sig_cols are in normalized_counts ----
@@ -54,7 +54,7 @@ compute_l2fc= function(normalized_counts,
     dplyr::filter(!(pert_type %in% c('empty', '', 'CB_only', NA))) %>%
     dplyr::group_by(across(all_of(grouping_cols))) %>%
     dplyr::summarise(mean_n= mean(n),
-                     mean_normalized_n= mean(2^(!!rlang::sym(count_col_name)))) %>% dplyr::ungroup()
+                     mean_normalized_n= mean(2^(!!rlang::sym(log2_norm_col)))) %>% dplyr::ungroup()
 
   # Print out the occurrence of each count of tech_reps
   # print('Number of technical replicate collapsed across all cell lines and biological replicates:')
