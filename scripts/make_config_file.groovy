@@ -177,7 +177,7 @@ pipeline {
         string(name: 'L2FC_COLUMN', defaultValue: 'l2fc', description: 'Name of the column containing the log2 fold change values used in DRC. This defaults to \"l2fc\".')
         string(name: 'GROWTH_PATTERN_COL', defaultValue: 'growth_condition', description: 'Name of the column containing the cell line growth annotations. This defaults to \"growth_condition\".')
         string(name: 'COLLAPSED_L2FC_COLUMN', defaultValue: 'median_l2fc', description: 'Name of the column containing the collapsed log2 fold change values used in biomarker. This defaults to \"collapsed_l2fc\".')
-        choice(name: 'MT_FILTER', choices: ['TRUE', 'FALSE'], description: 'Enable monotonicity filter')
+        choice(name: 'MT_FILTER', choices: ['FALSE', 'TRUE'], defaultValue: 'FALSE', description: 'Enable monotonicity filter')
         // DRC
         string(name: 'VIABILITY_CAP', defaultValue: '1.5', description: 'Cap for viability values used when computing LFC. This defaults to \"1.5\".')
         // CPS
