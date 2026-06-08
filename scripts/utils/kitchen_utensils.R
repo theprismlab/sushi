@@ -181,9 +181,9 @@ read_data_table <- function(csv_path, schema_path = NULL, nrows = Inf) {
 
 #' Load in QC thresholds in a json
 #'
-#' Reads in a json file and converts its parameters into numerics
+#' Reads in the QC parameters json file and converts its parameters into numerics
 #'
-#' @param json_file_path Path to a json file.
+#' @param json_file_path Path to the QC parameters json file.
 #' @import jsonlite
 load_thresholds_from_json <- function(json_file_path) {
   # Load required package

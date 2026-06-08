@@ -22,7 +22,8 @@ parser$add_argument("--cell_line_cols", default= "pool_id,depmap_id,lua",
                     help= "Columns that can describe a cell line")
 parser$add_argument("--collapsed_l2fc_file", default = "collapsed_l2fc.csv",
                     help = "Name of the file to be stored in the output directory.")
-parser$add_argument("--mt_filter", type = "logical", default = TRUE, help = "Filter out outlier treatment pools")
+parser$add_argument("--mt_filter", type = "logical", default = TRUE,
+                    help = "Filter out outlier treatment pools using a monotonicity check.")
 parser$add_argument("-o", "--out", default = getwd(), help = "Output path. Default is working directory")
 
 # get command line options, if help option encountered print help and exit
