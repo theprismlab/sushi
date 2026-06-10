@@ -55,14 +55,15 @@ if (args$mt_filter == TRUE) {
     stop("Filter NOT normally used for ", args$screen_type)
   }
 
-  # Set up lists of column names for inputs
+  # Create column groupings for monotonicity filter:
+  # trt_cl_cols are columns used to group together all doses of a pert for a cell line
   trt_cl_cols = unique(c(setdiff(sig_cols, c("pert_dose", "pert_dose_unit", "pert2_dose", "pert2_dose_unit")),
                          cell_line_cols))
-  # trt_cl_cols are used to group all doses of a perturbation for a cell line together
-  trt_pool_cols = unique(c(sig_cols, intersect(cell_line_cols, c("cell_set", "pool_id"))))
-  # trt_pool_cols are used to group all lines of a pool in each perturbation together
 
-  # trt_cell_set_cols are used to group all lines of a cell set in each perturbation together
+  # trt_pool_cols are used to group together all lines of a pool in a perturnation
+  trt_pool_cols = unique(c(sig_cols, intersect(cell_line_cols, c("cell_set", "pool_id"))))
+
+  # trt_cell_set_cols are used to group together all lines of a pool in a perturnation
   # "cell_set" may already exist in "sig_cols", so only add "cell_set" if it is missing
   if ("cell_set" %in% sig_cols) {
     trt_cell_set_cols = sig_cols
@@ -71,7 +72,7 @@ if (args$mt_filter == TRUE) {
     if ("cell_set" %in% names(collapsed_l2fc)) {
       trt_cell_set_cols = c(sig_cols, "cell_set")
     } else {
-      # Error out if "cell_set is not present"
+      # Error out if "cell_set is not present
       stop("Cannot find cell_set column in collapsed_l2fc - check sig_cols and/or cell_line_cols!")
     }
   }
