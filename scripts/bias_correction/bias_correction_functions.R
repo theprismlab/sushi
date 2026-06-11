@@ -59,3 +59,205 @@ create_model_formula = function(y, a, b, c, count_a, count_c) {
   }
   return(model_formula)
 }
+
+
+
+# Load required libraries
+library(dplyr)
+library(rlang)
+
+#' Variance-Adaptive Shrinkage Correction
+#' 
+#' @param df Dataframe in long format
+#' @param grouping_vars Character vector of columns defining experimental units (e.g., c("drug_id"))
+#' @param corrected_val String name of the column with OLS corrected values
+#' @param val String name of the column with raw uncorrected values
+#' @param batch_vars Character vector of columns defining discrete artifacts (e.g., c("a", "b"))
+#' @param shrunk_col_name String name for the output column (defaults to "shrunk_val")
+#' @return The original dataframe with `lambda` and `shrunk_val` appended.
+apply_shrinkage_correction_heavy <- function(df, 
+                                       grouping_vars = c("bio_rep", "CompoundPlate", "SampleID", "pert_dose", "pert_dose_unit", "day"),
+                                       corrected_val = "l2fc" , 
+                                       val = "l2fc_uncorrected", 
+                                       batch_vars = c("cell_set", "growth_condition"),
+                                       shrunk_col_name = "lfc_adaptive") {
+  
+  # 1. Convert strings to symbols for tidy evaluation
+  grouping_syms <- syms(grouping_vars)
+  batch_syms <- syms(batch_vars)
+  corrected_sym <- sym(corrected_val)
+  val_sym <- sym(val)
+  
+  # 2. Define the ultra-fast, fail-safe lambda calculator
+  
+  # calc_lambda <- function(v, g) {
+  #   # Filter NAs to prevent math errors
+  #   valid <- !is.na(v) & !is.na(g)
+  #   v <- v[valid]
+  #   g <- g[valid]
+  #   
+  #   # Safety: need at least 2 groups and 3 points to calculate variance
+  #   if (length(unique(g)) < 2 || length(v) < 3) return(1)
+  #   
+  #   # Step A: Calculate absolute deviations from group medians (Levene's Z)
+  #   group_medians <- ave(v, g, FUN = median)
+  #   Z <- abs(v - group_medians)
+  #   
+  #   # Step B: Calculate Sums of Squares directly
+  #   grand_mean_Z <- mean(Z)
+  #   group_means_Z <- ave(Z, g, FUN = mean)
+  #   
+  #   SS_total <- sum((Z - grand_mean_Z)^2)
+  #   SS_between <- sum((group_means_Z - grand_mean_Z)^2)
+  #   
+  #   # Safety: If there is literally zero variance in the data
+  #   if (SS_total == 0) return(1)
+  #   
+  #   # Step C: Compute Eta-squared and map to Lambda
+  #   eta_squared <- SS_between / SS_total
+  #   lambda <- 1 - sqrt(eta_squared)
+  #   
+  #   # Clamp between 0 and 1 to prevent floating point weirdness
+  #   return(max(0, min(1, lambda)))
+  # }
+
+  calc_lambda <- function(v, g) {
+    valid <- !is.na(v) & !is.na(g)
+    v <- v[valid]
+    g <- g[valid]
+    
+    k <- length(unique(g))
+    N <- length(v)
+    
+    if (k < 2 || N < 3) return(1)
+    
+    group_medians <- ave(v, g, FUN = median)
+    Z <- abs(v - group_medians)
+    
+    grand_mean_Z <- mean(Z)
+    group_means_Z <- ave(Z, g, FUN = mean)
+    
+    SS_total <- sum((Z - grand_mean_Z)^2)
+    SS_between <- sum((group_means_Z - grand_mean_Z)^2)
+    SS_within <- SS_total - SS_between
+    
+    if (SS_within < 1e-8) return(0) # Perfect variance separation (extreme ADC)
+    
+    # Calculate the Levene's W statistic
+    W_stat <- (SS_between / (k - 1)) / (SS_within / (N - k))
+    
+    # Anchor: Find the 99.9th percentile for these specific degrees of freedom
+    W_crit <- qf(0.999, df1 = k - 1, df2 = N - k)
+    
+    # Define the penalty constant so that at W_crit, the penalty is significant
+    c_penalty <- 1 / W_crit
+    
+    # Only penalize W statistics greater than 1 (the expected null value)
+    W_adjusted <- max(0, W_stat - 1)
+    
+    # Calculate lambda (decay function)
+    lambda <- 1 / (1 + c_penalty * W_adjusted)
+    
+    return(max(0, min(1, lambda)))
+  }
+  
+  
+  
+   
+  # 3. Execute the pipeline
+  result <- df %>%
+    # Create a single grouping variable for the interaction of a and b
+    dplyr::mutate(..batch_interaction.. = paste(!!!batch_syms, sep = "_")) %>%
+    # Group by drug/compound
+    dplyr::group_by(!!!grouping_syms) %>%
+    dplyr::mutate(
+      lambda = calc_lambda(!!val_sym, ..batch_interaction..),
+      # Apply the convex combination
+      !!sym(shrunk_col_name) := (!!val_sym) * (1 - lambda) + (!!corrected_sym) * lambda
+    ) %>%
+    dplyr::ungroup() %>%
+    # Clean up the temporary interaction column
+    dplyr::select(-..batch_interaction..)
+  
+  return(result)
+}
+
+
+
+
+
+#' Variance-Adaptive Shrinkage Correction
+#' 
+#' @param df Dataframe in long format
+#' @param grouping_vars Character vector of columns defining experimental units (e.g., c("drug_id"))
+#' @param corrected_val String name of the column with OLS corrected values
+#' @param val String name of the column with raw uncorrected values
+#' @param batch_vars Character vector of columns defining discrete artifacts (e.g., c("a", "b"))
+#' @param shrunk_col_name String name for the output column (defaults to "shrunk_val")
+#' @return The original dataframe with `lambda` and `shrunk_val` appended.
+apply_shrinkage_correction_mild <- function(df, 
+                                       grouping_vars = c("bio_rep", "CompoundPlate", "SampleID", "pert_dose", "pert_dose_unit", "day"),
+                                       corrected_val = "l2fc" , 
+                                       val = "l2fc_uncorrected", 
+                                       batch_vars = c("cell_set", "growth_condition"),
+                                       shrunk_col_name = "lfc_adaptive") {
+  
+  # 1. Convert strings to symbols for tidy evaluation
+  grouping_syms <- syms(grouping_vars)
+  batch_syms <- syms(batch_vars)
+  corrected_sym <- sym(corrected_val)
+  val_sym <- sym(val)
+  
+  # 2. Define the ultra-fast, fail-safe lambda calculator
+
+  calc_lambda <- function(v, g) {
+    # Filter NAs to prevent math errors
+    valid <- !is.na(v) & !is.na(g)
+    v <- v[valid]
+    g <- g[valid]
+
+    # Safety: need at least 2 groups and 3 points to calculate variance
+    if (length(unique(g)) < 2 || length(v) < 3) return(1)
+
+    # Step A: Calculate absolute deviations from group medians (Levene's Z)
+    group_medians <- ave(v, g, FUN = median)
+    Z <- abs(v - group_medians)
+
+    # Step B: Calculate Sums of Squares directly
+    grand_mean_Z <- mean(Z)
+    group_means_Z <- ave(Z, g, FUN = mean)
+
+    SS_total <- sum((Z - grand_mean_Z)^2)
+    SS_between <- sum((group_means_Z - grand_mean_Z)^2)
+
+    # Safety: If there is literally zero variance in the data
+    if (SS_total == 0) return(1)
+
+    # Step C: Compute Eta-squared and map to Lambda
+    eta_squared <- SS_between / SS_total
+    lambda <- 1 - sqrt(eta_squared)
+
+    # Clamp between 0 and 1 to prevent floating point weirdness
+    return(max(0, min(1, lambda)))
+  }
+  
+
+  
+  
+  # 3. Execute the pipeline
+  result <- df %>%
+    # Create a single grouping variable for the interaction of a and b
+    dplyr::mutate(..batch_interaction.. = paste(!!!batch_syms, sep = "_")) %>%
+    # Group by drug/compound
+    dplyr::group_by(!!!grouping_syms) %>%
+    dplyr::mutate(
+      lambda = calc_lambda(!!val_sym, ..batch_interaction..),
+      # Apply the convex combination
+      !!sym(shrunk_col_name) := (!!val_sym) * (1 - lambda) + (!!corrected_sym) * lambda
+    ) %>%
+    dplyr::ungroup() %>%
+    # Clean up the temporary interaction column
+    dplyr::select(-..batch_interaction..)
+  
+  return(result)
+}
