@@ -23,7 +23,7 @@ parser$add_argument("--cell_line_cols", default= "pool_id,depmap_id,lua",
                     help= "Columns that can describe a cell line")
 parser$add_argument("--collapsed_l2fc_file", default = "collapsed_l2fc.csv",
                     help = "Name of the file to be stored in the output directory.")
-parser$add_argument("--mt_filter", type = "logical", default = TRUE,
+parser$add_argument("--mt_filter", type = "logical", default = FALSE,
                     help = "Filter out outlier treatment pools using a monotonicity check.")
 parser$add_argument("-o", "--out", default = getwd(), help = "Output path. Default is working directory")
 
@@ -50,7 +50,7 @@ if (args$mt_filter == TRUE) {
   message("Monotonicity QC filter: On")
 
   # Throw large error if the screen type is not MTS!
-  if (args$screen_type %in% c("MTS_SEQ", "APS_SEQ")) {
+  if (!args$screen_type %in% c("MTS_SEQ", "APS_SEQ")) {
     message("Detected screen type ", args$screen_type, " Monotonicity filter should only be use for MTS or APS.")
     stop("Filter NOT normally used for ", args$screen_type)
   }
