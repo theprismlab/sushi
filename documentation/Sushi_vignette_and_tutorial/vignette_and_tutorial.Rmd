@@ -228,6 +228,16 @@ The following three metrics define PCR well failure on a particular PCR plate. P
 
 * We filter out wells where there may have been control barcode contamination, estimated by the linearity of the relationship between control barcode count and dose using Spearman correlation (`cb_spearman_threshold`) and Mean Absolute Error (`cb_mae_threshold`) on a logarithmic scale.
 
+### Measures of pool quality {.tabset}
+
+In the control wells, we calculate the absolute median deviation of each pool to the median log2 normalized value across the controls.
+
+* We filter out pools where the absolute median deviation is greater than 2.
+
+* Wells with more than 25% of pools exceeding this threshold are dropped.
+
+* Pools that exceed this threshold in more than 25% of the wells of the PCR plate are dropped.
+
 ## Calculating log2 fold changes {.tabset}
 
 ### Description
