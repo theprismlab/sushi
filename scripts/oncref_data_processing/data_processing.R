@@ -7,7 +7,14 @@ source("scripts/utils/kitchen_utensils.R")
 # Load the raw data ----
 # ----
 
-filtered_counts <- data.table::fread("OncRef data/PRISMOncologyReferenceSeqFilteredCounts.csv")
+
+
+# filtered_counts <- data.table::fread("OncRef data/PRISMOncologyReferenceSeqFilteredCounts.csv")
+
+filtered_counts <- data.table::fread("OncRef data/PRISMOncologyReferenceSeqFilteredCounts.csv") %>% 
+  dplyr::bind_rows(data.table::fread("OncRef data/air/all_AIR_with_collaborator_compounds.csv")) %>% 
+  dplyr::distinct()
+
 
 
 # ----
@@ -323,7 +330,9 @@ drc_table %>%
 # Portal files 
 
 
-compound_annotations <- data.table::fread("OncRef data/PRISMOncologyReferenceSeqCompoundList.csv")
+# compound_annotations <- data.table::fread("OncRef data/PRISMOncologyReferenceSeqCompoundList.csv")
+
+compound_annotations <- data.table::fread("OncRef data/PRISMOncologyReferenceSeqCompoundListExtended.csv")
 
 
 priority_table <- qc_table %>%
@@ -474,9 +483,6 @@ LFC.conditions %>%
 
 
 
-
-
-
 conf.pools <- filtered_counts %>% 
   dplyr::distinct(pool_id, depmap_id, cell_set) %>% 
   dplyr::filter(!is.na(depmap_id)) %>% 
@@ -509,4 +515,5 @@ conf.pools %>%
                      reshape2::melt()) %>% 
   reshape2::acast(Var1 ~ Var2) %>% 
   write.csv("OncRef data/PRISMOncologyReferenceSeqConfounderMatrix.csv")
+
 
