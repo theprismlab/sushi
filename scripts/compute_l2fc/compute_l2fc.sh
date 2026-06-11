@@ -23,6 +23,7 @@ else
 fi
 
 # Construct path to plate+cell qc table
+POOL_QC_TABLE="$BUILD_DIR"/qc_tables/pool_well_qc_table.csv
 PLATE_CELL_QC_TABLE="$BUILD_DIR"/qc_tables/plate_cell_qc_table.csv
 
 echo Build dir is: $BUILD_DIR
@@ -33,12 +34,13 @@ args=(
 --output_file "${LFC}"
 --out "$BUILD_DIR"
 --control_type "$CTL_TYPES"
---count_col_name "$COUNT_COL_NAME"
+--log2_norm_col "$COUNT_COL_NAME"
 --sig_cols "$SIG_COLS"
 --bio_rep_col "${BIO_REP_COL}"
 --ctrl_cols "$CONTROL_COLS"
 --cell_line_cols "$CELL_LINE_COLS"
---qc_path "$PLATE_CELL_QC_TABLE"
+--pool_qc_path "$POOL_QC_TABLE"
+--plate_cell_qc_path "$PLATE_CELL_QC_TABLE"
 --filter_failed_lines "$FILTER_FAILED_LINES"
 )
 

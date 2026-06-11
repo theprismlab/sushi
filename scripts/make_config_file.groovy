@@ -91,6 +91,7 @@ pipeline {
           separatorStyle: separatorStyleCss,
           sectionHeaderStyle: sectionHeaderStyleBlue
         )
+        booleanParam(name: 'GENERATE_WELL_METRICS', defaultValue: true, description: 'Generate well quality metrics.')
         booleanParam(name: 'GENERATE_QC_TABLES', defaultValue: true, description: 'Generate MTS style QC tables')
         booleanParam(name: 'GENERATE_QC_TABLES_2', defaultValue: false, description: 'Generate QC tables post-lfc. Only check this if you are computing log fold changes.')
         booleanParam(name: 'QC_IMAGES', defaultValue: false, description: 'Check this to trigger the QC images job.')
@@ -173,6 +174,7 @@ pipeline {
         string(name: 'L2FC_COLUMN', defaultValue: 'l2fc', description: 'Name of the column containing the log2 fold change values used in DRC. This defaults to \"l2fc\".')
         string(name: 'GROWTH_PATTERN_COL', defaultValue: 'growth_condition', description: 'Name of the column containing the cell line growth annotations. This defaults to \"growth_condition\".')
         string(name: 'COLLAPSED_L2FC_COLUMN', defaultValue: 'median_l2fc', description: 'Name of the column containing the collapsed log2 fold change values used in biomarker. This defaults to \"collapsed_l2fc\".')
+        choice(name: 'MT_FILTER', choices: ['FALSE', 'TRUE'], defaultValue: 'FALSE', description: 'Enable monotonicity filter')
         // DRC
         string(name: 'VIABILITY_CAP', defaultValue: '1.5', description: 'Cap for viability values used when computing LFC. This defaults to \"1.5\".')
         // CPS
@@ -275,7 +277,7 @@ pipeline {
 
                         // compute_l2fc parameters
                         'SIG_COLS', 'CONTROL_COLS', 'CELL_LINE_COLS', 'COUNT_COL_NAME', 'CTL_TYPES', 'COUNT_THRESHOLD', 'VIABILITY_CAP',
-                        'GROWTH_PATTERN_COL', 'BIO_REP_COL',
+                        'GROWTH_PATTERN_COL', 'BIO_REP_COL', 'MT_FILTER',
 
                         // biomarker parameters
                         'UNIVARIATE_BIOMARKER', 'MULTIVARIATE_BIOMARKER', 'BIOMARKER_FILE', 'DR_COLUMN', 'LFC_BIOMARKER', 'AUC_BIOMARKER',
@@ -416,6 +418,9 @@ pipeline {
                         }
                         if (params.CBNORMALIZE) {
                             scriptsToRun.add('normalize/normalize.sh')
+                        }
+                        if (params.GENERATE_WELL_METRICS) {
+                            scriptsToRun.add('well_metrics/well_metrics.sh')
                         }
                         if (params.GENERATE_QC_TABLES) {
                             scriptsToRun.add('qc_tables/qc_tables.sh')
