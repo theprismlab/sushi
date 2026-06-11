@@ -27,23 +27,31 @@ validate_num_bio_reps= function(num_unique_bio_reps, max_bio_rep_count) {
 #'              depmap_id, lua, counts_flag, mean_n, mean_normalized_n, and l2fc.
 #' @param sig_cols List of columns that define an individual condition. This should not include any replicates.
 #'                  The columns in this list should be present in the l2fc dataframe.
+#' @param median_cols List of numerical columns to collapsed replicates across.
 #' @param cell_line_cols List of columns that define a cell line. Defaults to "project_code" and "depmap_id"
 #' @returns - collapsed_counts
-collapse_bio_reps= function(l2fc, sig_cols, cell_line_cols= c('depmap_id', 'lua', 'pool_id')) {
+collapse_bio_reps= function(l2fc, sig_cols,
+                            median_cols = c("l2fc", "l2fc_uncorrected"),
+                            cell_line_cols= c('depmap_id', 'lua', 'pool_id')) {
   # Validation: Check that sig_cols are present in l2fc ----
   if(validate_columns_exist(sig_cols, l2fc) == FALSE) {
     print(sig_cols)
     stop('Not all sig_cols (printed above) are present in the l2fc file.')
   }
-  
+
   # Validation: Check that cell_line_cols are present in l2fc ----
   if(validate_columns_exist(cell_line_cols, l2fc) == FALSE) {
     print(cell_line_cols)
     stop('Not all cell_line_cols (printed above) are present in the l2fc file.')
   }
 
-  # Collapse bio replicates and calculate median l2fcs
-  median_cols = c("l2fc", "l2fc_uncorrected")
+  # Validation: Check that median_cols are present in l2fc ----
+  if (validate_columns_exist(median_cols, l2fc) == FALSE) {
+    print(median_cols)
+    stop('Not all median_cols (printed above) are present in the l2fc file.')
+  }
+
+  # Collapse bio replicates over the listed median_cols
   collapsed_counts = l2fc |>
     dplyr::group_by(dplyr::across(tidyselect::all_of(c(cell_line_cols, sig_cols)))) |>
     dplyr::summarise(dplyr::across(tidyselect::any_of(median_cols), median, .names = "median_{.col}"),
