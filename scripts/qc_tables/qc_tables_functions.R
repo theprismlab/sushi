@@ -144,8 +144,8 @@ compute_error_rate <- function(df, metric = "log2_normalized_n", group_cols = c(
 #' @param df A data frame containing normalized and raw data along with annotations for control types.
 #' @param group_cols A character vector specifying the columns to group by, along with `pert_type`
 #' (default: `c("depmap_id", "pcr_plate")`).
-#' @param negcon A string specifying the `pert_type` value for negative controls (default: `"ctl_vehicle"`).
-#' @param poscon A string specifying the `pert_type` value for positive controls (default: `"trt_poscon"`).
+#' @param ctrl_types Vector of types in pert_type that denote the positive and negative controls.
+#' @param pseudocount Pseudocount value to add to raw read counts.
 #'
 #' @return A data frame containing medians and MADs for raw and normalized data for both control types.
 #' Additional columns include false sensitivity probabilities at thresholds -1 (`false_sensitivity_probability_50`)
@@ -186,7 +186,7 @@ compute_ctl_medians_and_mad <- function(df, group_cols,
 #' Group by cell lines + sig cols + plate and count number of bio reps,
 #' Group by cell lines + plate and get median number of bio reps
 #'
-#' @param norm_counts A dataframe of filtered nromalized counts.
+#' @param df A dataframe of filtered nromalized counts.
 #' @param plate_cell_line_cols A vector of columns describing cell lines.
 #' @param sig_cols A vector of columns describing treatment profiles.
 #' @return A dataframe.
@@ -201,14 +201,25 @@ compute_med_trt_bio_rep = function(df, plate_cell_line_cols, sig_cols) {
   return(med_trt_bio_reps)
 }
 
-#' Generate cell plate table
+#' Generate plate cell table
 #'
 #' This function generates a comprehensive QC table for cell_lines +pcr plates by computing and
 #' merging various QC metrics, including medians, MADs, error rates, and log fold changes (LFC).
 #'
 #' @param normalized_counts A data frame containing normalized read counts and associated metadata.
-#' @param filtered_counts A data frame containing filtered read counts for the same dataset.
-#' @param cell_line_cols A string of comma-separated column names that define a unique cell line.
+#' @param ctrl_cell_line_cols Vector of column names describing a cell line in each control condition
+#'                            on a PCR plate.
+#' @param cell_line_cols Vector of column names describing unique cell lines.
+#' @param sig_cols Vector of column names describing unique perturbations.
+#' @param pseudocount Pseudocount value to add to raw read counts.
+#' @param contains_poscon Boolean indicating whether or not the screen contains positive controls.
+#' @param pert_plate_col String name of the pert plate column.
+#' @param poscon Pert type that identifies the positive controls.
+#' @param negcon Pert type that identifies the negative controls.
+#' @param nc_variability_threshold Maximum variability for the negative controls.
+#' @param error_rate_threshold Maximum error rate value.
+#' @param pc_viability_threshold Maximum positive control viability.
+#' @param nc_raw_count_threshold Minimum number of read counts for cell lines in the negative controls.
 #'
 #' @return A data frame (`plate_cell_table`) that merges various QC metrics grouped by cell lines and plates, including:
 #' - Control medians and MADs for normalized and raw data.
