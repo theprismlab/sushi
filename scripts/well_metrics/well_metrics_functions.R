@@ -286,8 +286,6 @@ id_cols_qc_flags <- function(id_cols_table,
                              cb_cl_ratio_low_poscon = 0.5,
                              cb_cl_ratio_high_poscon = 2,
                              well_reads_threshold = 40) {
-
-  message("TROUBLESHOOTING: contamination_threshold ", contamination_threshold)
   # Add a qc_flag column using case_when (conditions are checked in order)
   qc_table <- id_cols_table %>%
     mutate(qc_flag = case_when(
@@ -309,48 +307,6 @@ id_cols_qc_flags <- function(id_cols_table,
 
   # Return both outputs
   return(flagged_all)
-}
-
-#' Generate Pool Well QC Table
-#'
-#' This function flags pool/well combinations in control wells based on the variability of cell line
-#' measurements relative to the pool/well median. It calculates the median normalized count for each
-#' pool/well group, computes the absolute difference between each cell line's normalized count and the
-#' group median, and then determines the fraction of outliers. Wells with a fraction of outliers exceeding
-#' the specified threshold are flagged as having "pool_well_outliers".
-#'
-#' @param normalized_counts A data frame containing normalized count data. Required columns include:
-#'   \code{cb_name}, \code{pcr_plate}, \code{pcr_well}, \code{pert_type}, \code{pool_id},
-#'   \code{log2_normalized_n}, \code{lua}, \code{depmap_id}, and \code{cell_set}.
-#' @param pool_well_delta_threshold A numeric threshold specifying the minimum absolute difference from
-#'   the pool/well median for a cell line to be considered an outlier (default: 5).
-#' @param pool_well_fraction_threshold A numeric threshold specifying the minimum fraction of outlier cell
-#'   lines required for the well to be flagged (default: 0.4).
-#'
-#' @return A data frame with an added \code{qc_flag} column that indicates pool/well combinations flagged
-#'   as having excessive outliers.
-#'
-#' @import dplyr
-generate_pool_well_qc_table <- function(normalized_counts,
-                                        id_cols = c("pcr_plate", "pcr_well"),
-                                        pool_well_delta_threshold = 5,
-                                        pool_well_fraction_threshold = 0.4) {
-  ### POOL_WELL_OUTLIERS
-  ## Flag pool/well combinations based on the fraction of cell lines in a pool + well that are some distance
-  # from the pool + well median.
-  ## This is in control wells only
-  # To do: Comments mention negcons!!! But this is doing all wells?!?!?!
-  pool_well_outliers = normalized_counts |>
-    # Get the median value of the pool in each well
-    dplyr::group_by(across(all_of(c(id_cols, "pert_type", "pool_id")))) |>
-    dplyr::mutate(pool_well_median = median(log2_normalized_n, na.rm = TRUE),
-                  delta_from_pool_well_median = abs(log2_normalized_n - pool_well_median)) |>
-    dplyr::summarise(n_outliers = sum(delta_from_pool_well_median > pool_well_delta_threshold, na.rm = TRUE),
-                     n_cell_lines = dplyr::n(),
-                     .groups = "drop") |>
-    dplyr::mutate(fraction_outliers = n_outliers / n_cell_lines,
-                  qc_flag = if_else(fraction_outliers > pool_well_fraction_threshold,
-                                    "pool_well_outliers", NA_character_))
 }
 
 #' Compute variance decomposition
