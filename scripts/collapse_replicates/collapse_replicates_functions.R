@@ -34,21 +34,21 @@ collapse_bio_reps= function(l2fc, sig_cols,
                             median_cols = c("l2fc", "l2fc_uncorrected"),
                             cell_line_cols= c('depmap_id', 'lua', 'pool_id')) {
   # Validation: Check that sig_cols are present in l2fc ----
-  if(validate_columns_exist(sig_cols, l2fc) == FALSE) {
+  if (validate_columns_exist(sig_cols, l2fc) == FALSE) {
     print(sig_cols)
     stop('Not all sig_cols (printed above) are present in the l2fc file.')
   }
 
   # Validation: Check that cell_line_cols are present in l2fc ----
-  if(validate_columns_exist(cell_line_cols, l2fc) == FALSE) {
+  if (validate_columns_exist(cell_line_cols, l2fc) == FALSE) {
     print(cell_line_cols)
     stop('Not all cell_line_cols (printed above) are present in the l2fc file.')
   }
 
   # Validation: Check that median_cols are present in l2fc ----
-  if (validate_columns_exist(median_cols, l2fc) == FALSE) {
-    print(median_cols)
-    stop('Not all median_cols (printed above) are present in the l2fc file.')
+  if (!any(median_cols %in% colnames(l2fc))) {
+    message("Median cols: ", paste(median_cols, collapse = ", "))
+    stop("At least one median column is required to run collapse_reps!")
   }
 
   # Collapse bio replicates over the listed median_cols
