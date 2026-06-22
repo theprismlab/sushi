@@ -236,7 +236,7 @@ $$
 |median(log_2norm\ n - median(log_2norm\ n))| > 2
 $$
 
-Control PCR wells where more than 25% of the pools are identified as outliers are also filtered out. Pools that that identified as outliers in more than 25% of the control PCR wells of a PCR plate are also dropped.
+Control PCR wells where more than 25% of the pools are identified as outliers are also filtered out. Pools that are identified as outliers in more than 25% of the control PCR wells of a PCR plate are also removed.
 
 ## Calculating log2 fold changes {.tabset}
 
