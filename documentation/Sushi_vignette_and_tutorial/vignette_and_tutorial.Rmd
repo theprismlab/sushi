@@ -230,13 +230,13 @@ The following three metrics define PCR well failure on a particular PCR plate. P
 
 ### Measures of pool quality {.tabset}
 
-In the control wells, we calculate the absolute median deviation of each pool to the median log2 normalized value across the controls.
+In the control wells, we identify and drop any outlier pools. Outlier pools are defined as pools where the absolute median deviation of its cell lines from the median log2 normalized value is greater than 2.
 
-* We filter out pools where the absolute median deviation is greater than 2.
+$$
+|median(log_2norm\ n - median(log_2norm\ n))| > 2
+$$
 
-* Wells with more than 25% of pools exceeding this threshold are dropped.
-
-* Pools that exceed this threshold in more than 25% of the wells of the PCR plate are dropped.
+Control PCR wells where more than 25% of the pools are identified as outliers are also filtered out. Pools that that identified as outliers in more than 25% of the control PCR wells of a PCR plate are also dropped.
 
 ## Calculating log2 fold changes {.tabset}
 
@@ -276,7 +276,7 @@ normalized_counts <- read_data_table(file.path(local_test_data_path, "normalized
 control_type <- "ctl_vehicle"
 sig_cols <- c("pert_name","pert_dose","pert_dose_unit","day")
 ctrl_cols <- c("cell_set", "day", "pcr_plate", "replicate_plate")
-count_col_name <- "log2_normalized_n"
+log2_norm_col <- "log2_normalized_n"
 cell_line_cols <- c("cell_set", "lua", "depmap_id", "pool_id", "growth_condition")
 
 # Calculated log2 fold changes
@@ -284,7 +284,7 @@ l2fc = compute_l2fc(normalized_counts = normalized_counts,
                     control_type = control_type,
                     sig_cols = sig_cols,
                     ctrl_cols = ctrl_cols,
-                    count_col_name = count_col_name,
+                    log2_norm_col = log2_norm_col,
                     cell_line_col = cell_line_cols)
 
 head(l2fc)
@@ -350,6 +350,24 @@ collapsed_l2fc = collapse_bio_reps(l2fc = l2fc,
                                   cell_line_cols = cell_line_cols)
 
 head(collapsed_l2fc)
+```
+
+After collapsing across biological replicates, a monotonicity filter is applied only for MTS style screens. This filter identifies and removes pools that break our assumptions of monotonicity.
+
+```{r example monotonicity, echo = T, eval = T}
+# Set up inputs ----
+trt_cl_cols = unique(c(setdiff(sig_cols, c("pert_dose", "pert_dose_unit", "pert2_dose", "pert2_dose_unit")),
+                       cell_line_cols))
+trt_pool_cols = unique(c(sig_cols, intersect(cell_line_cols, c("cell_set", "pool_id"))))
+
+# Identify pools that break monotonicity ----
+monotonicity = get_monotonicity(collapsed_l2fc, trt_cl_cols)
+flagged_trt_pools = flag_breaks(monotonicity, 
+                                trt_pool_cols = trt_pool_cols, 
+                                trt_cell_set_cols = sig_cols, 
+                                pool_cutoff = 0.25)
+
+head(flagged_trt_pools |> dplyr::filter(!is.na(cell_set_flag)))
 ```
 
 ## Splitting based on projects
