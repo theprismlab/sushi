@@ -102,6 +102,7 @@ id_cols_table = generate_id_cols_table(
 # Identify poor performing wells to drop
 id_cols_qc_flags_table = id_cols_qc_flags(
   id_cols_table = id_cols_table,
+  group_cols = c("pert_plate", id_cols, "pert_type", "cell_set"),
   contamination_threshold = thresholds$contamination_threshold,
   cb_mae_threshold = thresholds$cb_mae_threshold,
   cb_spearman_threshold = thresholds$cb_spearman_threshold,
