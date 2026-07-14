@@ -76,7 +76,7 @@ dmso_norm_input[, log2_normalized_n := log2_normalized_n - median(log2_normalize
 dmso_l2fc = compute_l2fc(normalized_counts = dmso_norm_input,
                          cell_line_cols = args$cell_line_cols,
                          control_type = args$negcon_type,
-                         count_col_name = args$count_col_name,
+                         log2_norm_col = args$count_col_name,
                          ctrl_cols = args$ctrl_cols,
                          sig_cols = args$sig_cols)
 
