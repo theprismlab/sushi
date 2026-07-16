@@ -4,12 +4,11 @@ source("scripts/utils/kitchen_utensils.R")
 
 # -----
 # Load the raw data ----
-# ----
+# ---- 
 
-compound_annotations <- data.table::fread("OncRef data/PRISMOncologyReferenceSeqCompoundList26Q3.csv") 
+compound_annotations <- data.table::fread("OncRef data/release files/PRISMOncologyReferenceCompoundList.csv") 
 
-filtered_counts <- data.table::fread("OncRef data/PRISMOncologyReferenceSeqFilteredCounts26Q3.csv") 
-
+filtered_counts <- data.table::fread("OncRef data/release files/PRISMOncologyReferenceSeqFilteredCounts.csv") 
 
 # ----
 # Normalize relative to the spike-in control barcodes ----
@@ -297,9 +296,6 @@ drc_table <- drc_table %>%
 
 
 
-drc_table %>% 
-  write_csv("OncRef data/drc_table26Q3.csv")
-
 
 
 # Compute fitted l2fc values ----
@@ -321,20 +317,31 @@ collapsed_l2fc %<>%
 # SAVE FILES ----
 
 qc_table %>% 
-  write_csv("OncRef data/PRISMOncologyReferenceSeqQC26Q3.csv")
+  write_csv("OncRef data/release files/PRISMOncologyReferenceSeqQC.csv")
 
 l2fc %>% 
-  write_csv("OncRef data/PRISMOncologyReferenceSeqLFC26Q3.csv")
+  write_csv("OncRef data/release files/PRISMOncologyReferenceSeqLFC.csv")
 
 collapsed_l2fc %>% 
-  write_csv("OncRef data/PRISMOncologyReferenceSeqLFCCollapsed26Q3.csv")
+  write_csv("OncRef data/release files/PRISMOncologyReferenceSeqLFCCollapsed.csv")
 
 drc_table %>% 
-  write_csv("OncRef data/PRISMOncologyReferenceSeqDRC26Q3.csv")
+  write_csv("OncRef data/release files/PRISMOncologyReferenceSeqDRC.csv")
 
 
 # Portal files --- !
 
+compound_annotations <- data.table::fread("OncRef data/release files/PRISMOncologyReferenceCompoundList.csv")
+
+filtered_counts <- data.table::fread("OncRef data/release files/PRISMOncologyReferenceSeqFilteredCounts.csv")
+
+qc_table <- data.table::fread("OncRef data/release files/PRISMOncologyReferenceSeqQC.csv")
+
+drc_table <- data.table::fread("OncRef data/release files/PRISMOncologyReferenceSeqDRC.csv")
+
+collapsed_l2fc <- data.table::fread("OncRef data/release files/PRISMOncologyReferenceSeqLFCCollapsed.csv")
+
+l2fc <- data.table::fread("OncRef data/release files/PRISMOncologyReferenceSeqLFC.csv")
 
 
 priority_table <- qc_table %>%
@@ -360,7 +367,7 @@ drc_table %>%
   dplyr::inner_join(priority_table) %>% 
   dplyr::rename(ModelID = depmap_id, EC50 = inflection, LowerAsymptote = lower_limit, UpperAsymptote = upper_limit, Slope = slope) %>% 
   dplyr::distinct(ModelID, SampleID, CompoundPlate, EC50, LowerAsymptote, UpperAsymptote, Slope) %>% 
-  write_csv("OncRef data/PRISMOncologyReferenceSeqResponseCurves26Q3.csv")
+  write_csv("OncRef data/release files/PRISMOncologyReferenceSeqResponseCurves.csv")
 
 
 
@@ -370,34 +377,12 @@ drc_table %>%
   dplyr::filter( Prioritized, successful_fit) %>% 
   dplyr::inner_join(priority_table) %>% 
   reshape2::acast(depmap_id ~ SampleID, value.var = "log2_auc") %>% 
-  write.csv("OncRef data/PRISMOncologyReferenceSeqLog2AUCMatrix26Q3.csv")
+  write.csv("OncRef data/release files/PRISMOncologyReferenceSeqLog2AUCMatrix.csv")
 
 
-drc_table %>% 
-  dplyr::filter(response == "corrected") %>% 
-  dplyr::left_join(compound_annotations %>% dplyr::distinct(SampleID, CompoundPlate, Prioritized)) %>% 
-  dplyr::filter( Prioritized, successful_fit) %>% 
-  dplyr::inner_join(priority_table) %>% 
-  reshape2::acast(depmap_id ~ SampleID, value.var = "auc") %>% 
-  write.csv("OncRef data/PRISMOncologyReferenceSeqAUCMatrix26Q3.csv")
 
 
-drc_table %>% 
-  dplyr::filter(response == "uncorrected") %>% 
-  dplyr::left_join(compound_annotations %>% dplyr::distinct(SampleID, CompoundPlate, Prioritized)) %>% 
-  dplyr::filter( Prioritized, successful_fit) %>% 
-  dplyr::inner_join(priority_table) %>% 
-  reshape2::acast(depmap_id ~ SampleID, value.var = "log2_auc") %>% 
-  write.csv("OncRef data/PRISMOncologyReferenceSeqLog2AUCMatrixUncorrected26Q3.csv")
 
-
-drc_table %>% 
-  dplyr::filter(response == "uncorrected") %>% 
-  dplyr::left_join(compound_annotations %>% dplyr::distinct(SampleID, CompoundPlate, Prioritized)) %>% 
-  dplyr::filter( Prioritized, successful_fit) %>% 
-  dplyr::inner_join(priority_table) %>% 
-  reshape2::acast(depmap_id ~ SampleID, value.var = "auc") %>% 
-  write.csv("OncRef data/PRISMOncologyReferenceSeqAUCMatrixUncorrected26Q3.csv")
 
 
 
@@ -410,7 +395,7 @@ collapsed_l2fc %>%
   dplyr::rename(Dose = pert_dose, DoseUnit = pert_dose_unit) %>% 
   dplyr::distinct(Label, SampleID, Dose, DoseUnit, depmap_id, l2fc_fitted) %>% 
   reshape2::acast(depmap_id ~ Label, value.var = "l2fc_fitted") %>% 
-  write.csv("OncRef data/PRISMOncologyReferenceSeqLog2ViabilityCollapsedMatrix26Q3.csv")
+  write.csv("OncRef data/release files/PRISMOncologyReferenceSeqLog2ViabilityCollapsedMatrix.csv")
 
 
 collapsed_l2fc %>%
@@ -421,31 +406,10 @@ collapsed_l2fc %>%
   dplyr::mutate(Label = paste0(CompoundName, " (", SampleID, ") @", pert_dose, " ", pert_dose_unit)) %>% 
   dplyr::rename(Dose = pert_dose, DoseUnit = pert_dose_unit) %>% 
   dplyr::distinct(Label, SampleID, Dose, DoseUnit) %>% 
-  write_csv("OncRef data/PRISMOncologyReferenceSeqLog2ViabilityCollapsedConditions26Q3.csv")
+  write_csv("OncRef data/release files/PRISMOncologyReferenceSeqLog2ViabilityCollapsedConditions.csv")
 
 
 
-collapsed_l2fc %>%
-  dplyr::left_join(compound_annotations %>% dplyr::distinct(SampleID, CompoundName, CompoundPlate, Prioritized)) %>% 
-  dplyr::filter(Prioritized) %>% 
-  dplyr::inner_join(priority_table) %>%  
-  dplyr::distinct(depmap_id, SampleID, pert_dose, pert_dose_unit, l2fc_uncorrected_fitted, CompoundName) %>% 
-  dplyr::mutate(Label = paste0(CompoundName, " (", SampleID, ") @", pert_dose, " ", pert_dose_unit)) %>% 
-  dplyr::rename(Dose = pert_dose, DoseUnit = pert_dose_unit) %>% 
-  dplyr::distinct(Label, SampleID, Dose, DoseUnit, depmap_id, l2fc_uncorrected_fitted) %>% 
-  reshape2::acast(depmap_id ~ Label, value.var = "l2fc_uncorrected_fitted") %>% 
-  write.csv("OncRef data/PRISMOncologyReferenceSeqLog2ViabilityCollapsedMatrixUncorrected26Q3.csv")
-
-
-collapsed_l2fc %>%
-  dplyr::left_join(compound_annotations %>% dplyr::distinct(SampleID, CompoundName, CompoundPlate, Prioritized)) %>% 
-  dplyr::filter(Prioritized) %>% 
-  dplyr::inner_join(priority_table) %>%  
-  dplyr::distinct(depmap_id, SampleID, pert_dose, pert_dose_unit, l2fc_uncorrected_fitted, CompoundName) %>% 
-  dplyr::mutate(Label = paste0(CompoundName, " (", SampleID, ") @", pert_dose, " ", pert_dose_unit)) %>% 
-  dplyr::rename(Dose = pert_dose, DoseUnit = pert_dose_unit) %>% 
-  dplyr::distinct(Label, SampleID, Dose, DoseUnit) %>% 
-  write_csv("OncRef data/PRISMOncologyReferenceSeqLog2ViabilityCollapsedConditionsUncorrected26Q3.csv")
 
 
 
@@ -478,10 +442,10 @@ LFC_ %>%
   dplyr::left_join(LFC.conditions) %>% 
   dplyr::mutate(viability = pmin(2^l2fc, 1.5)) %>% 
   reshape2::acast(depmap_id ~ Label, value.var = "viability") %>%
-  write.csv("OncRef data/PRISMOncologyReferenceSeqViabilityMatrix26Q3.csv")
+  write.csv("OncRef data/release files/PRISMOncologyReferenceSeqViabilityMatrix.csv")
 
 LFC.conditions %>% 
-  write_csv("OncRef data/PRISMOncologyReferenceSeqViabilityConditions26Q3.csv")
+  write_csv("OncRef data/release files/PRISMOncologyReferenceSeqViabilityConditions.csv")
 
 
 
@@ -517,4 +481,6 @@ conf.pools %>%
   dplyr::bind_rows(conf.QC %>% 
                      reshape2::melt()) %>% 
   reshape2::acast(Var1 ~ Var2) %>% 
-  write.csv("OncRef data/PRISMOncologyReferenceSeqConfounderMatrix26Q3.csv")
+  write.csv("OncRef data/release files/PRISMOncologyReferenceSeqConfounderMatrix.csv")
+
+
