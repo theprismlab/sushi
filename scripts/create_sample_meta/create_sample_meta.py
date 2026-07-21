@@ -60,6 +60,35 @@ def rename_sample_meta(df):
     return df.rename(columns=rename_map)
 
 
+# Micro-sign variants that COMET may use for dose units. The pert (single-agent)
+# dose unit comes through as ASCII "uM" while the pert2 dose unit has historically
+# arrived as "µM" using the Unicode micro sign (U+00B5) or Greek small mu
+# (U+03BC). That inconsistency silently breaks the synergy module: it joins each
+# combination's pert2 single-agent l2fc on (…, pert2_dose_unit == pert_dose_unit),
+# so "µM" != "uM" makes every pert2 join miss and every synergy score come out NA.
+# Canonicalise to ASCII "u" at the source so ALL downstream steps (sushi, synergy,
+# BigQuery, portal, build-validation) see one consistent representation.
+_MICRO_SIGNS = {
+    "µ": "u",  # MICRO SIGN
+    "μ": "u",  # GREEK SMALL LETTER MU
+}
+
+
+def normalize_dose_units(df, dose_unit_cols=("pert_dose_unit", "pert2_dose_unit")):
+    """Canonicalise the micro sign in dose-unit columns to ASCII 'u'.
+
+    Only touches the named columns and only replaces micro-sign codepoints, so a
+    legitimate unit like 'mM' or 'nM' is untouched.
+    """
+    for col in dose_unit_cols:
+        if col in df.columns:
+            series = df[col].astype("string")  # nullable string; leaves NA as NA
+            for bad, good in _MICRO_SIGNS.items():
+                series = series.str.replace(bad, good, regex=False)
+            df[col] = series
+    return df
+
+
 def remove_sample_meta_columns(df, columns_to_remove):
     # Remove specified columns from the DataFrame
     return df.drop(columns=columns_to_remove, errors="ignore")
@@ -162,6 +191,7 @@ def main():
                 api_key=api_key,
             )
             .pipe(rename_sample_meta)
+            .pipe(normalize_dose_units)
             .pipe(rename_val_projects, screen)
             .pipe(update_project_code, screen)
             .pipe(
