@@ -534,7 +534,7 @@ create_multivariate_biomarker_table <- function(in_path, out_path = NULL,
   }
 
   # load the input file
-  input_file <- read_data_table(in_path)
+  input_file <- data.table::fread(in_path)
 
   # check if the input table populated
   if(nrow(input_file) == 0){
@@ -612,7 +612,7 @@ create_univariate_biomarker_table <- function(in_path, out_path,
   }
 
   # load the input file
-  input_file <- read_data_table(in_path)
+  input_file <- data.table::fread(in_path)
 
   # check if the input table populated
   if(nrow(input_file) == 0){
