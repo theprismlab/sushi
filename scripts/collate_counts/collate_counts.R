@@ -46,7 +46,7 @@ delete_existing_files(args$out, "barcode_counts")
 
 # Read in metadata files as data.table objects ----
 cell_line_meta= read_data_table(args$cell_line_meta)
-CB_meta= read_data_table(args$CB_meta)
+CB_meta= read_cb_meta(args$CB_meta, args$barcode_col) # tolerates a missing CB_meta (no control barcodes)
 sample_meta= read_data_table(args$sample_meta)
 ## if flowcell_lanes one lane, the integer gets read in as numeric, so force this to be a string
 if(validate_columns_exist("flowcell_lanes", sample_meta)){

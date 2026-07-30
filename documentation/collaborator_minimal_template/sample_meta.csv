@@ -1,0 +1,3 @@
+pcr_plate,pcr_well,index_1,index_2,flowcell_names,flowcell_lanes,cell_set
+PLATE1,A01,AACCGGTT,TTGGCCAA,HXXXXXXXX,1,MY_CELL_SET
+PLATE1,A02,AACCGGTT,GGTTAACC,HXXXXXXXX,1,MY_CELL_SET

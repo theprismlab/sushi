@@ -57,7 +57,7 @@ prism_barcode_counts= read_data_table(args$prism_barcode_counts)
 sample_meta= read_data_table(args$sample_meta)
 cell_set_and_pool_meta= read_data_table(args$cell_set_and_pool_meta)
 cell_line_meta= read_data_table(args$cell_line_meta)
-CB_meta= read_data_table(args$CB_meta)
+CB_meta= read_cb_meta(args$CB_meta, args$barcode_col) # tolerates a missing CB_meta (no control barcodes)
 screen= args$screen
 api_key= args$api_key
 

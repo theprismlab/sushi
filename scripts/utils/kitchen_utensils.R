@@ -179,6 +179,27 @@ read_data_table <- function(csv_path, schema_path = NULL, nrows = Inf) {
   return(dt)
 }
 
+#' Read CB_meta.csv, tolerating a missing file
+#'
+#' Custom-PRISM runs that use no control barcodes may not have a CB_meta.csv.
+#' collate_counts / filter_counts read a hardcoded $BUILD_DIR/CB_meta.csv, so an
+#' absent file would otherwise error at fread. When the file is missing, return an
+#' empty data.table carrying the barcode_col and cb_log2_dose so downstream joins
+#' and the dose-column check behave as they do for a header-only stub.
+#'
+#' @param cb_meta_path Path to CB_meta.csv.
+#' @param barcode_col Name of the barcode-sequence column. Defaults to 'forward_read_barcode'.
+#' @import data.table
+read_cb_meta <- function(cb_meta_path, barcode_col = 'forward_read_barcode') {
+  if (file.exists(cb_meta_path)) {
+    return(read_data_table(cb_meta_path))
+  }
+  print(paste0('CB_meta not found at ', cb_meta_path, '. Proceeding without control barcodes.'))
+  empty <- data.table::data.table(barcode = character(), cb_log2_dose = numeric())
+  data.table::setnames(empty, 'barcode', barcode_col)
+  return(empty)
+}
+
 #' Load in QC thresholds in a json
 #'
 #' Reads in the QC parameters json file and converts its parameters into numerics
