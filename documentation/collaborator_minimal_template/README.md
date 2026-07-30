@@ -6,11 +6,11 @@ the two sushi steps needed to reach `filtered_counts.csv`:
 1. **collate_counts** — nori output (`raw_counts_uncollapsed.csv.gz`) → `prism_barcode_counts.csv`
 2. **filter_counts** — `prism_barcode_counts.csv` → `filtered_counts.csv`
 
-No CB normalization, no QC, no LFCs — so **no control barcodes** are used. The config keys people
+No control barcode normalization, no QC, and no LFC computation — so **no control barcodes** are used. The config keys people
 usually worry about (`sig_cols`, `control_cols`, `cell_line_cols`, `count_col_name`, `ctl_types`)
 are consumed only in `compute_l2fc` and later; they are **irrelevant** here. Keep the defaults for
 the only three that matter: `ID_COLS=pcr_plate,pcr_well`,
-`SEQUENCING_INDEX_COLS=flowcell_names,index_1,index_2`, `BARCODE_COL=forward_read_barcode`.
+`SEQUENCING_INDEX_COLS=flowcell_names,flowcell_lanes,index_1,index_2`, `BARCODE_COL=forward_read_barcode`.
 
 ## Files in this template
 
@@ -75,8 +75,8 @@ matter. `CONTROL_BARCODE_META` is irrelevant here (only used by the disabled cel
 |---|---|
 | `pcr_plate` | `id_cols`: existence + uniqueness enforced in both steps; join key onto counts |
 | `pcr_well` | other half of `id_cols` |
-| `index_1` | sequencing index; maps reads → wells; must also exist in the nori file |
-| `index_2` | sequencing index; reverse-complemented if `reverse_index2=TRUE` |
+| `index_1` | sequencing index; maps reads → wells |
+| `index_2` | sequencing index; maps reads → plates |
 | `flowcell_names` | flowcell-filter key; also checked unconditionally at collate startup |
 | `flowcell_lanes` | paired with `flowcell_names` to enumerate expected flowcell+lane combos |
 | `cell_set` | filter_counts merge key to `cell_set_and_pool_meta`; empty/NA rows are dropped from the expected-reads template |
