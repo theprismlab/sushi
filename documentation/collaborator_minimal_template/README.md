@@ -25,8 +25,22 @@ No `CB_meta.csv` is needed — the pipeline tolerates its absence (see below).
 ## Pipeline arguments to change from their defaults
 
 These are the `make_config_file.groovy` parameters that must differ from their defaults for a
-minimal, no-controls, `filtered_counts`-only run. Everything not listed here keeps its default
-(including `ID_COLS`, `SEQUENCING_INDEX_COLS`, `BARCODE_COL`, and all the `*_COLS` keys).
+minimal, no-controls, `filtered_counts`-only run. Everything not listed here keeps its default.
+
+### Why the column config keys are NOT in this list
+
+`collate_counts.sh` and `filter_counts.sh` pass only three column keys to the R scripts —
+`ID_COLS`, `SEQUENCING_INDEX_COLS`, `BARCODE_COL` (see their `args=(...)` arrays). The
+"condition" column keys — `SIG_COLS`, `CONTROL_COLS`, `CELL_LINE_COLS`, `COUNT_COL_NAME`,
+`CTL_TYPES` — are **never passed to either step**; they're read only by `compute_l2fc`/normalize/QC,
+which are off. So they are inert here regardless of their value.
+
+The three keys that *are* used keep their defaults **only because this template's
+`sample_meta.csv` uses the canonical column names those defaults point at** (`pcr_plate`,
+`pcr_well`, `index_1`, `index_2`, `flowcell_names`). The column requirement is real — it's just
+expressed in the sample-meta column *names* (next section), not in a config change. If your data
+uses different headers (e.g. `plate`/`well`), either rename to canonical **or** set the matching
+key, e.g. `ID_COLS=plate,well`.
 
 **Point the build at your data:**
 
