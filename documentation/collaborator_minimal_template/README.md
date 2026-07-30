@@ -19,7 +19,8 @@ the only three that matter: `ID_COLS=pcr_plate,pcr_well`,
 | `sample_meta.csv` | the 7 required sample-metadata columns (below) |
 | `cell_line_meta.csv` | barcode → cell-line lookup |
 | `cell_set_and_pool_meta.csv` | which cell lines each `cell_set` expects |
-| `CB_meta.csv` | **optional** header-only stub — the code now tolerates a missing CB_meta (see below) |
+
+No `CB_meta.csv` is needed — the pipeline tolerates its absence (see below).
 
 ## The 7 required `sample_meta.csv` columns
 
@@ -46,9 +47,8 @@ is pure pass-through for these two steps and only matters if normalize/QC/LFC ar
 
 - `cell_line_meta.csv`: `depmap_id`, `lua`, `forward_read_barcode`
 - `cell_set_and_pool_meta.csv`: `cell_set`, `depmap_id`, `lua` (`pool_id` optional)
-- `CB_meta.csv`: `forward_read_barcode` + `cb_log2_dose` (or `cb_log10_dose`) — **rows may be empty**
 
-## Control barcodes: `CB_meta.csv` is now optional
+## Control barcodes: no `CB_meta.csv` required
 
 Both steps read a **hardcoded** `$BUILD_DIR/CB_meta.csv` (collate_counts.sh:111,
 filter_counts.sh:79), ignoring the `CONTROL_BARCODE_META` config value. Historically an absent
@@ -56,19 +56,18 @@ file errored at `fread`.
 
 Both reads now go through `read_cb_meta()` (`scripts/utils/kitchen_utensils.R`), which returns an
 empty CB_meta (with `forward_read_barcode` + `cb_log2_dose`) when the file is missing — so a
-custom-PRISM run with no control barcodes just works:
+custom-PRISM run with no control barcodes just works, no `CB_meta.csv` needed:
 
 - `collate_counts.R:49` — `read_cb_meta(...)`; empty barcode set is merely additive to `known_barcodes`
 - `filter_counts.R:60` — `read_cb_meta(...)`
 
 The empty CB_meta carries `cb_log2_dose`, so the dose-column check at
 `filter_counts_functions.R:56-66` passes and the downstream CB joins become no-ops — no changes
-were needed in `filter_counts_functions.R`. The `CB_meta.csv` in this template is kept only as an
-explicit, self-documenting stub; you can delete it and the run still succeeds.
+were needed in `filter_counts_functions.R`.
 
 ## Verify a run
 
-1. Put the four files + a small `raw_counts_uncollapsed.csv.gz` (columns
+1. Put the three metadata files + a small `raw_counts_uncollapsed.csv.gz` (columns
    `flowcell_name,flowcell_lane,index_1,index_2,forward_read_barcode,n`) in a `BUILD_DIR`.
 2. Run collate → expect `prism_barcode_counts.csv`, non-empty, no CB_meta error.
 3. Run filter → expect `filtered_counts.csv`; the CB template block is skipped (no "control
