@@ -22,6 +22,39 @@ the only three that matter: `ID_COLS=pcr_plate,pcr_well`,
 
 No `CB_meta.csv` is needed — the pipeline tolerates its absence (see below).
 
+## Pipeline arguments to change from their defaults
+
+These are the `make_config_file.groovy` parameters that must differ from their defaults for a
+minimal, no-controls, `filtered_counts`-only run. Everything not listed here keeps its default
+(including `ID_COLS`, `SEQUENCING_INDEX_COLS`, `BARCODE_COL`, and all the `*_COLS` keys).
+
+**Point the build at your data:**
+
+| Argument | Default | Set to | Why |
+|---|---|---|---|
+| `BUILD_DIR` | `/cmap/obelix/pod/prismSeq/` | your build directory | Must contain the Nori `raw_counts_uncollapsed.csv.gz` **and** the three metadata files from this template |
+| `BUILD_NAME` | `` (empty) | your build name | Names the output files; match the `BUILD_DIR` name |
+| `GIT_BRANCH` | `main` | `develop` | The missing-`CB_meta` tolerance (`read_cb_meta`) lives on `develop`; use `main` only once it is merged there |
+
+**Turn off every stage except collate + filter** (all default `true`, each pulls in control
+barcodes, QC, or LFCs that this run does not do):
+
+| Argument | Default | Set to | Why |
+|---|---|---|---|
+| `CREATE_CELLDB_METADATA` | `true` | `false` | You supply `cell_line_meta.csv` / `cell_set_and_pool_meta.csv`; don't fetch from cellDB |
+| `CBNORMALIZE` | `true` | `false` | Normalization requires control barcodes + vehicle controls |
+| `COMPUTE_LFC` | `true` | `false` | No fold changes |
+| `BIAS_CORRECTION` | `true` | `false` | Operates on LFCs |
+| `COLLAPSE` | `true` | `false` | Collapses LFC replicates |
+| `GENERATE_WELL_METRICS` | `true` | `false` | Uses control barcodes |
+| `GENERATE_QC_TABLES` | `true` | `false` | QC we don't run |
+| `FILTER_SKIPPED_WELLS` | `true` | `false` | `skipped_wells.csv` comes from `create_sample_meta` (not run); a no-op without the file, but set `false` for clarity |
+
+Keep on: `COLLATE_FASTQ_READS` and `FILTER_COUNTS` (both default `true`). `CREATE_SAMPLE_META`
+is already `false` by default — leave it (you provide `sample_meta.csv`). `FILTER_QC_FLAGS` and
+`FILTER_FAILED_LINES` only affect the QC/collapse stages you've turned off, so their values don't
+matter. `CONTROL_BARCODE_META` is irrelevant here (only used by the disabled cellDB/QC stages).
+
 ## The 7 required `sample_meta.csv` columns
 
 | Column | Why it is required |
