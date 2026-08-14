@@ -93,11 +93,11 @@ flag_control_bcs = function(filtered_counts, CB_meta, id_cols, negcon_type,
 
   # Flag control barcodes that:
   # 4. Flag PCR wells without enough unflagged control barcodes for normalization.
-  # In a PCR well if there are 4 or fewer CBs tagged with "Yes" in keep_cb,
+  # In a PCR well if there are 1 or fewer CBs tagged with "Yes" in keep_cb,
   # those "Yes" notes are converted into "Not enough valid CBs".
   cbs_annots = cbs_annots |>
     dplyr::group_by(dplyr::across(tidyselect::all_of(id_cols))) |>
-    dplyr::mutate(keep_cb = ifelse(sum(keep_cb == "Yes") <= 4 & keep_cb == "Yes",
+    dplyr::mutate(keep_cb = ifelse(sum(keep_cb == "Yes") <= 1 & keep_cb == "Yes",
                                    "Not enough valid CBs", keep_cb)) |>
     dplyr::ungroup()
 
