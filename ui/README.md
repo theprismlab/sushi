@@ -73,6 +73,15 @@ All via environment variables; every one has a working default.
 
 ## Deploying on vercingetorix-r8
 
+Prerequisites, neither of which is RHEL 8's default:
+
+- **Python 3.10+.** The stock `python3` on RHEL 8 is 3.6, which pydantic 2 does
+  not support. Install the AppStream module (`dnf module install python:3.11`)
+  and build the venv with that interpreter.
+- **Node 18+**, only to build the SPA. It is not needed at runtime — if you'd
+  rather not put node on the VM, run `npm run build` anywhere and rsync
+  `ui/frontend/dist/` across.
+
 Build the SPA once; the backend serves `frontend/dist` directly, so there is no
 second web server to run.
 
