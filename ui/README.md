@@ -35,13 +35,22 @@ remains a working fallback.
 
 ## Layout
 
-    ui/backend/params.yml     every parameter the Jenkins job declares: type, default, tier, help
-    ui/backend/presets.yml    per-screen-type overrides (only what differs from stock)
-    ui/backend/catalog.py     loads the yml, resolves presets, validates
-    ui/backend/jenkins.py     Jenkins REST client (trigger, queue, status, console)
-    ui/backend/db.py          SQLite run records
-    ui/backend/app.py         FastAPI routes
-    ui/frontend/              React + Vite SPA
+    ui/backend/pyproject.toml  its own uv project -- see below
+    ui/backend/params.yml      every parameter the Jenkins job declares: type, default, tier, help
+    ui/backend/presets.yml     per-screen-type overrides (only what differs from stock)
+    ui/backend/catalog.py      loads the yml, resolves presets, validates
+    ui/backend/jenkins.py      Jenkins REST client (trigger, queue, status, console)
+    ui/backend/db.py           SQLite run records
+    ui/backend/app.py          FastAPI routes
+    ui/frontend/               React + Vite SPA
+
+The backend is a **separate uv project**, not part of the root `sushi` package.
+The root `pyproject.toml` is what the pipeline image installs
+(`pip install -e .` in the Dockerfile), so putting fastapi and uvicorn there
+would pull them into every pipeline container — and conversely, syncing the
+root project onto the web host would drag in polars, boto3, bigquery and a
+`pyfarmhash` build the UI never touches. Two projects, two lockfiles, no
+overlap in dependencies.
 
 `params.yml` must stay in sync with the `parameters { ... }` block of
 `scripts/make_config_file.groovy`: Jenkins rejects an entire build if it is
@@ -64,29 +73,32 @@ All via environment variables; every one has a working default.
 ## Development
 
     cd ui/backend
-    python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-    .venv/bin/python test_backend.py          # self-check, no Jenkins needed
-    .venv/bin/uvicorn app:app --reload --port 8000
+    uv sync
+    uv run python test_backend.py             # self-check, no Jenkins needed
+    uv run uvicorn app:app --reload --port 8000
 
     cd ui/frontend
     npm install && npm run dev                # http://localhost:5173, proxies /api to :8000
 
 ## Deploying on vercingetorix-r8
 
-Prerequisites, neither of which is RHEL 8's default:
-
-- **Python 3.10+.** The stock `python3` on RHEL 8 is 3.6, which pydantic 2 does
-  not support. Install the AppStream module (`dnf module install python:3.11`)
-  and build the venv with that interpreter.
-- **Node 18+**, only to build the SPA. It is not needed at runtime — if you'd
-  rather not put node on the VM, run `npm run build` anywhere and rsync
-  `ui/frontend/dist/` across.
+The VM has Python 3.11.5, which satisfies `requires-python`. It has **no node**,
+so build the SPA elsewhere — it is a build-time dependency only. `uv` must be on
+the VM's PATH.
 
 Build the SPA once; the backend serves `frontend/dist` directly, so there is no
 second web server to run.
 
-    cd /opt/sushi-ui/ui/frontend && npm ci && npm run build
-    cd /opt/sushi-ui/ui/backend && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+    # on any machine with node, then rsync ui/frontend/dist/ to the VM
+    cd ui/frontend && npm ci && npm run build
+
+    # on the VM
+    cd /opt/sushi-ui/ui/backend && uv sync --no-dev --frozen
+
+`--frozen` installs exactly what `uv.lock` pins and fails rather than
+re-resolving; `--no-dev` leaves out httpx, which only `test_backend.py` needs.
+`uv sync` creates `.venv` in that directory, which is what the unit file below
+points at.
 
 `/etc/systemd/system/sushi-ui.service`:
 
