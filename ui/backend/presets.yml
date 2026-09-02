@@ -1,0 +1,73 @@
+# Per-screen-type defaults.
+#
+# Derived by diffing config.json + qc_params.json across the reference builds
+# named below. Only values that actually differ from params.yml defaults are
+# listed -- everything else falls through to the catalog default, so this file
+# stays short and the diff against "stock" is obvious.
+#
+# `dir` is the directory under PRISMSEQ_ROOT that builds of this type live in.
+# It is deliberately separate from the SCREEN_TYPE parameter: two of the five
+# reference builds have a SCREEN_TYPE that does not match their directory
+# (see notes), and the directory is what actually locates the data.
+
+presets:
+  - id: MTS_SEQ
+    label: MTS — Multiplexed Titration Screen
+    dir: MTS_SEQ
+    reference: MTS032
+    params:
+      SCREEN_TYPE: MTS_SEQ
+      CONTROL_BARCODE_META: ha_mod
+      COUNT_THRESHOLD: '100'
+      CREATE_CELLDB_METADATA: true
+
+  - id: EPS_SEQ
+    label: EPS — Extended Profiling Screen
+    dir: EPS_SEQ
+    reference: EPS008
+    params:
+      SCREEN_TYPE: EPS_SEQ
+      CONTROL_BARCODE_META: h-a
+      COUNT_THRESHOLD: '40'
+      CREATE_CELLDB_METADATA: true
+      nc_variability_threshold: '1.5'
+
+  - id: APS_SEQ
+    label: APS — Anchor Profiling Screen
+    dir: APS_SEQ
+    reference: APS007
+    # NOTE: APS007/config.json has SCREEN_TYPE=MTS_SEQ. Assumed to be a
+    # copy-paste error in that build rather than intent; using APS_SEQ here.
+    # Confirm before relying on this for a real APS run.
+    params:
+      SCREEN_TYPE: APS_SEQ
+      CONTROL_BARCODE_META: ha_mod
+      COUNT_THRESHOLD: '100'
+      CREATE_CELLDB_METADATA: true
+      CREATE_SAMPLE_META: true
+
+  - id: AIR_SEQ
+    label: AIR — Anchor Irradiation Screen
+    dir: AIR_SEQ
+    reference: AIR002
+    # NOTE: SCREEN_TYPE has no AIR_SEQ choice in make_config_file.groovy, and
+    # Jenkins rejects out-of-range values for choice parameters. AIR002 ran
+    # with SCREEN_TYPE=APS_SEQ, so that is what we send. To make AIR_SEQ a
+    # first-class value, add it to the SCREEN_TYPE choice list in the groovy
+    # and to params.yml, then change this line.
+    params:
+      SCREEN_TYPE: APS_SEQ
+      CONTROL_BARCODE_META: ha_mod
+      COUNT_THRESHOLD: '100'
+      CREATE_CELLDB_METADATA: false
+
+  - id: CPS_SEQ
+    label: CPS — Combination Profiling Screen
+    dir: CPS_SEQ
+    reference: CPS016
+    params:
+      SCREEN_TYPE: CPS_SEQ
+      CONTROL_BARCODE_META: ha_mod
+      COUNT_THRESHOLD: '100'
+      CREATE_CELLDB_METADATA: false
+      SYNERGY: true
