@@ -13,6 +13,16 @@
 //     as a safety net. The job is idempotent and cheap when nothing changed.
 //   - Jenkins' ProcessTreeKiller would reap conmon when the build ends, which
 //     is what JENKINS_NODE_COOKIE=dontKillMe prevents.
+//
+// Running under Jenkins is also what makes the archive step work: build
+// directories are espresso-owned and mode 755, so a stale config.json can only
+// be moved aside by espresso. Jenkins runs as espresso, and rootless podman
+// maps container root to the invoking user, so writes land as espresso.
+//
+// NOTE: :8100 is currently held by a hand-started instance out of
+// /local/jenkins/sushi-ui (see bin/sushi-ui there). Stop that before the first
+// run of sushi-ui-main, or --network=host cannot bind and the deploy will fail
+// its health check and roll back. :8101 is free, so develop can go first.
 
 def ENVIRONMENTS = [
     main   : [name: 'production', port: '8100', volume: 'sushi-ui-db-main'],
@@ -161,10 +171,11 @@ void startContainer(String image, String commitLabel = null) {
           -e SUSHI_COMMIT=${commit} \
           -e SUSHI_BRANCH=${env.DEPLOY_BRANCH} \
           -e PORT=${env.DEPLOY_PORT} \
-          -e JENKINS_URL=http://localhost:8080 \
-          -e JENKINS_JOB_PATH=job/sushi \
+          -e JENKINS_URL=http://localhost:8889 \
+          -e JENKINS_JOB_PATH=job/run_sushi \
           -e PRISMSEQ_ROOT=/cmap/obelix/pod/prismSeq \
           -e SUSHI_UI_DB=/data/sushi_ui.db \
+          -e SUSHI_UI_PRESETS=/data/presets.yml \
           -v ${env.DEPLOY_VOLUME}:/data \
           -v /cmap/obelix/pod/prismSeq:/cmap/obelix/pod/prismSeq \
           ${image}

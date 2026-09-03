@@ -63,8 +63,8 @@ All via environment variables; every one has a working default.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `JENKINS_URL` | `http://localhost:8080` | |
-| `JENKINS_JOB_PATH` | `job/sushi` | URL path of the job. Nested folders: `job/prism/job/sushi` |
+| `JENKINS_URL` | `http://localhost:8080` | On vercingetorix-r8 it is `http://localhost:8889` — Jenkins runs from a bare .war as `espresso`, with no systemd unit |
+| `JENKINS_JOB_PATH` | `job/sushi` | URL path of the job; the real one is `job/run_sushi`. Nested folders: `job/prism/job/sushi` |
 | `JENKINS_USER` / `JENKINS_TOKEN` | unset | Needed if the Jenkins instance requires auth to trigger builds |
 | `PRISMSEQ_ROOT` | `/cmap/obelix/pod/prismSeq` | Used to derive build directories and list existing builds |
 | `SUSHI_UI_DB` | `ui/backend/sushi_ui.db` | Put this somewhere backed up |
