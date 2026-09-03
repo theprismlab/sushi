@@ -193,6 +193,7 @@ void startContainer(String image, String commitLabel = null) {
           -e SUSHI_BRANCH=${env.DEPLOY_BRANCH} \
           -e PORT=${env.DEPLOY_PORT} \
           -e JENKINS_URL=http://localhost:8889 \
+          -e JENKINS_PUBLIC_URL=http://vercingetorix.broadinstitute.org:8889 \
           -e JENKINS_JOB_PATH=job/run_sushi \
           -e PRISMSEQ_ROOT=/cmap/obelix/pod/prismSeq \
           -e SUSHI_UI_DB=/data/sushi_ui.db \

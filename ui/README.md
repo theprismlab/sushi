@@ -143,6 +143,7 @@ differ.
 | --- | --- | --- |
 | `JENKINS_URL` | `http://localhost:8080` | this VM runs Jenkins on **8889**, from a bare .war as `espresso` with no systemd unit |
 | `JENKINS_JOB_PATH` | `job/sushi` | this VM's job is **`job/run_sushi`**. Nested folders: `job/prism/job/sushi` |
+| `JENKINS_PUBLIC_URL` | same as `JENKINS_URL` | where a **browser** reaches Jenkins. `JENKINS_URL` is localhost on the deploy host, which is the client's own laptop when followed as a link |
 | `JENKINS_USER` / `JENKINS_TOKEN` | unset | optional service account, used only when no user session applies |
 | `PRISMSEQ_ROOT` | `/cmap/obelix/pod/prismSeq` | root of the build tree the browser walks |
 | `SUSHI_UI_DB` | `ui/backend/sushi_ui.db` | put this somewhere backed up |

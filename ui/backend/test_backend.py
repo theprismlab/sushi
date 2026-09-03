@@ -505,6 +505,28 @@ def test_version_params_are_their_own_primary_group():
     assert "GIT_BRANCH" not in by_group.get("pipeline", [])
 
 
+def test_build_links_use_the_browser_facing_host():
+    """The API base is localhost on the deploy host; a link with localhost in it
+    points a client browser at its own machine."""
+    import jenkins
+
+    base, public, job = jenkins.BASE, jenkins.PUBLIC_BASE, jenkins.JOB_PATH
+    try:
+        jenkins.BASE = "http://localhost:8889"
+        jenkins.JOB_PATH = "job/run_sushi"
+
+        jenkins.PUBLIC_BASE = "http://vercingetorix.broadinstitute.org:8889"
+        assert jenkins.build_url(3305) == \
+            "http://vercingetorix.broadinstitute.org:8889/job/run_sushi/3305/"
+        assert "localhost" not in jenkins.build_url(3305)
+
+        # Unset, it falls back to BASE, which is right when both are the same host.
+        jenkins.PUBLIC_BASE = jenkins.BASE
+        assert jenkins.build_url(3305) == "http://localhost:8889/job/run_sushi/3305/"
+    finally:
+        jenkins.BASE, jenkins.PUBLIC_BASE, jenkins.JOB_PATH = base, public, job
+
+
 def test_params_yml_matches_the_groovy_job():
     """Drift here is the one failure mode that breaks every launch at once."""
     source = GROOVY.read_text()
