@@ -136,6 +136,33 @@ Two values for one screen is an anomaly, not a choice — the form says so and
 fills in nothing. A manual edit is never overwritten, and the field is badged
 with the source when the value came from a lookup.
 
+## An existing config.json prefills the form
+
+The pipeline only fills in keys its `config.json` is *missing*, so for a build
+that already has one, that file — not the screen-type defaults — is what a
+re-run will actually use. The form therefore adopts every parameter the file
+declares, and marks those fields "from config.json" until they are edited.
+
+Three keys are deliberately not taken from it:
+
+| Key | Why |
+| --- | --- |
+| `BUILD_DIR`, `BUILD_NAME` | owned by the directory just picked, which may be a copy or rename of the one the config was written in |
+| `SCREEN_TYPE` | decided by inference, where the directory outranks the file — see below |
+
+Everything outside the parameter catalog is dropped, which is also what keeps
+`API_KEY`, `COMMIT`, `TIMESTAMP` and the derived thresholds out of the form.
+
+Precedence depends on how the screen type was decided:
+
+- **Inferred from the path** — the file wins, because it is what the re-run uses.
+- **Clicked explicitly** — the click is a deliberate "apply this type's
+  defaults", so it wins for the params that type sets. Params the type says
+  nothing about still come from the file.
+
+This also means the override warning now only fires for values someone actually
+changed, rather than every place the form disagreed with reality.
+
 ## Screen-type defaults
 
 `presets.yml` in git is a **seed**. The first save on the Screen types page

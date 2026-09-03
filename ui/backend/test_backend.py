@@ -586,6 +586,78 @@ def test_control_barcode_lookup_picks_the_right_source():
             "need a screen or a build directory"
 
 
+def test_existing_config_prefills_the_form():
+    """An existing config.json is what a re-run actually uses, so the form shows
+    it rather than the screen-type defaults."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        build = root / "TEST" / "MTS030_SUBSET"
+        build.mkdir(parents=True)
+        build.joinpath("config.json").write_text(json.dumps({
+            "BUILD_NAME": "something-else",
+            "BUILD_DIR": "/somewhere/stale",
+            "SCREEN": "MTS030",
+            "SCREEN_TYPE": "CPS_SEQ",
+            "CONTROL_BARCODE_META": "h-a",
+            "COUNT_THRESHOLD": "77",
+            "API_KEY": "secret",
+            "COMMIT": "deadbee",
+            "LOW_ABUNDANCE_THRESHOLD": "20",
+        }))
+
+        original = catalog.PRISMSEQ_ROOT
+        try:
+            catalog.PRISMSEQ_ROOT = str(root)
+
+            d = catalog.defaults_for_path("TEST/MTS030_SUBSET")
+            v = d["values"]
+
+            # The reported bug: SCREEN was the build name even though the config
+            # declared a different one.
+            assert v["SCREEN"] == "MTS030", v["SCREEN"]
+            assert v["CONTROL_BARCODE_META"] == "h-a"
+            assert v["COUNT_THRESHOLD"] == "77"
+
+            # Owned by the directory just picked, not by the file.
+            assert v["BUILD_NAME"] == "MTS030_SUBSET"
+            assert v["BUILD_DIR"].endswith("TEST/MTS030_SUBSET")
+            # SCREEN_TYPE comes from inference, never from the overlay. TEST/ is
+            # not a screen-type directory, so inference falls through to the
+            # config's own SCREEN_TYPE -- ahead of the build name's prefix. A
+            # screen-type directory would have won over both.
+            assert v["SCREEN_TYPE"] == "CPS_SEQ", v["SCREEN_TYPE"]
+            assert catalog.infer_preset("CPS_SEQ/anything")[0] == "CPS_SEQ"
+
+            # Nothing outside the catalog reaches the form -- API_KEY above all.
+            for name in ("API_KEY", "COMMIT", "LOW_ABUNDANCE_THRESHOLD"):
+                assert name not in v, name
+                assert name not in d["from_config"], name
+            for name in ("BUILD_DIR", "BUILD_NAME", "SCREEN_TYPE"):
+                assert name not in d["from_config"], name
+
+            # Clicking a screen type is a deliberate "apply these defaults", so
+            # it beats the file -- but only for the params that type sets.
+            clicked = catalog.defaults_for_path("TEST/MTS030_SUBSET", "EPS_SEQ")
+            assert clicked["values"]["COUNT_THRESHOLD"] == "40", "the type must win here"
+            assert clicked["overridden_by_type"] == ["COUNT_THRESHOLD"]
+            assert clicked["values"]["nc_variability_threshold"] == "1.5"  # from the type
+            assert clicked["values"]["SCREEN"] == "MTS030"  # type says nothing, file does
+            assert "COUNT_THRESHOLD" not in clicked["from_config"]
+
+            # A build with no config.json is unaffected.
+            bare = root / "MTS_SEQ" / "MTS999"
+            bare.mkdir(parents=True)
+            plain = catalog.defaults_for_path("MTS_SEQ/MTS999")
+            assert plain["from_config"] == {}
+            assert plain["values"]["SCREEN"] == "MTS999", "falls back to the build name"
+
+            # Unparseable json must not take the form down.
+            build.joinpath("config.json").write_text("{not json")
+            assert catalog.defaults_for_path("TEST/MTS030_SUBSET")["from_config"] == {}
+        finally:
+            catalog.PRISMSEQ_ROOT = original
+
+
 def test_params_yml_matches_the_groovy_job():
     """Drift here is the one failure mode that breaks every launch at once."""
     source = GROOVY.read_text()
