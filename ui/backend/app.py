@@ -202,8 +202,18 @@ def launch(req: LaunchRequest):
             path = build_dir / filename
             if path.exists():
                 backup = path.with_name(f"{filename}.{stamp}.bak")
-                shutil.copy2(path, backup)
-                path.unlink()
+                try:
+                    shutil.copy2(path, backup)
+                    path.unlink()
+                except OSError as exc:
+                    # Nothing has been queued yet, so refusing outright is safe;
+                    # launching anyway would silently ignore the form.
+                    raise HTTPException(
+                        403,
+                        f"Cannot archive {filename} in {build_dir}: {exc}. "
+                        "The service needs write access to the build directory, "
+                        "or move the file aside by hand.",
+                    ) from exc
                 archived.append(backup.name)
 
     modules = {name: values.get(name) for name in catalog.module_names()}
@@ -345,7 +355,16 @@ SUSHI_ENV = os.environ.get("SUSHI_ENV", "local")
 @lru_cache(maxsize=1)
 def _deployed_version() -> dict:
     """Which commit is actually serving, so "did my change land?" is answerable
-    from the page instead of by ssh."""
+    from the page instead of by ssh.
+
+    Deployed builds run from a container image with no .git, so the Jenkins job
+    passes these in; the git fallback is for running from a checkout in dev.
+    """
+    if os.environ.get("SUSHI_COMMIT"):
+        return {"commit": os.environ["SUSHI_COMMIT"],
+                "branch": os.environ.get("SUSHI_BRANCH", "unknown"),
+                "committed_at": None}
+
     def git(*args):
         return subprocess.run(("git", *args), cwd=Path(__file__).parent, check=True,
                               capture_output=True, text=True, timeout=5).stdout.strip()

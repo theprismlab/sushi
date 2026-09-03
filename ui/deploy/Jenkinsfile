@@ -1,0 +1,185 @@
+// Deploys the sushi UI. One Jenkins job per environment, both using this file:
+//
+//   sushi-ui-develop  -> SCM branch develop, serves :8101
+//   sushi-ui-main     -> SCM branch main,    serves :8100
+//
+// The environment is derived from the checked-out branch, so the two jobs
+// differ only in their SCM configuration. Nothing here needs root: Jenkins
+// already runs as a user with podman and the obelix mount.
+//
+// The UI runs as a detached podman container rather than a systemd unit,
+// because we have no sudo on this VM. Consequences worth knowing:
+//   - Reboots do not bring it back, so the cron trigger below re-runs the job
+//     as a safety net. The job is idempotent and cheap when nothing changed.
+//   - Jenkins' ProcessTreeKiller would reap conmon when the build ends, which
+//     is what JENKINS_NODE_COOKIE=dontKillMe prevents.
+
+def ENVIRONMENTS = [
+    main   : [name: 'production', port: '8100', volume: 'sushi-ui-db-main'],
+    develop: [name: 'develop',    port: '8101', volume: 'sushi-ui-db-develop'],
+]
+
+pipeline {
+    agent any
+
+    parameters {
+        booleanParam(name: 'FORCE_REDEPLOY', defaultValue: false,
+                     description: 'Rebuild and restart even if the running container is already on this commit.')
+    }
+
+    triggers {
+        pollSCM('H/2 * * * *')
+        // Safety net: restarts the container after a VM reboot, and catches a
+        // missed poll. Exits in seconds when the deployment is already current.
+        cron('H/15 * * * *')
+    }
+
+    options {
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '50'))
+        timeout(time: 30, unit: 'MINUTES')
+    }
+
+    environment {
+        PODMAN = '/usr/bin/podman'
+    }
+
+    stages {
+        stage('Identify') {
+            steps {
+                script {
+                    // GIT_BRANCH is "origin/develop" for a plain pipeline job and
+                    // "develop" for multibranch; BRANCH_NAME only exists for the latter.
+                    def raw = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    def branch = raw.replaceFirst(/^origin\//, '').trim()
+
+                    if (!ENVIRONMENTS.containsKey(branch)) {
+                        error("No environment defined for branch '${branch}'. " +
+                              "This job must track one of ${ENVIRONMENTS.keySet()}.")
+                    }
+
+                    env.DEPLOY_BRANCH = branch
+                    env.DEPLOY_ENV = ENVIRONMENTS[branch].name
+                    env.DEPLOY_PORT = ENVIRONMENTS[branch].port
+                    env.DEPLOY_VOLUME = ENVIRONMENTS[branch].volume
+                    env.CONTAINER = "sushi-ui-${branch}"
+                    env.COMMIT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.IMAGE = "localhost/sushi-ui:${branch}-${env.COMMIT}"
+
+                    // What is live right now, so we can skip a no-op deploy and
+                    // roll back to it if the new one is unhealthy.
+                    env.LIVE_COMMIT = sh(
+                        script: """${PODMAN} inspect -f '{{index .Config.Labels "sushi.commit"}}' ${env.CONTAINER} 2>/dev/null || true""",
+                        returnStdout: true).trim()
+                    env.LIVE_IMAGE = sh(
+                        script: """${PODMAN} inspect -f '{{.Image}}' ${env.CONTAINER} 2>/dev/null || true""",
+                        returnStdout: true).trim()
+                    env.RUNNING = sh(
+                        script: "${PODMAN} ps --filter name=^${env.CONTAINER}\$ --filter status=running -q",
+                        returnStdout: true).trim() ? 'yes' : 'no'
+
+                    echo "${branch} -> ${env.DEPLOY_ENV} on :${env.DEPLOY_PORT}"
+                    echo "target ${env.COMMIT}; live ${env.LIVE_COMMIT ?: 'nothing'} (running: ${env.RUNNING})"
+
+                    env.SKIP = (env.RUNNING == 'yes' && env.LIVE_COMMIT == env.COMMIT
+                                && !params.FORCE_REDEPLOY) ? 'yes' : 'no'
+                    if (env.SKIP == 'yes') {
+                        echo 'Already deployed and running. Nothing to do.'
+                    }
+                }
+            }
+        }
+
+        stage('Build image') {
+            when { environment name: 'SKIP', value: 'no' }
+            steps {
+                sh '${PODMAN} build -t ${IMAGE} -f ui/Dockerfile ui'
+            }
+        }
+
+        stage('Redeploy') {
+            when { environment name: 'SKIP', value: 'no' }
+            steps {
+                script {
+                    startContainer(env.IMAGE)
+                }
+            }
+        }
+
+        stage('Health check') {
+            steps {
+                script {
+                    if (healthy()) {
+                        echo "${env.DEPLOY_ENV} healthy on :${env.DEPLOY_PORT} at ${env.COMMIT}"
+                        return
+                    }
+                    if (env.SKIP == 'yes') {
+                        error("Container is running but /api/health is not responding on :${env.DEPLOY_PORT}.")
+                    }
+
+                    // An unattended deploy must not be able to leave an
+                    // environment dead.
+                    if (!env.LIVE_IMAGE) {
+                        error("${env.COMMIT} is unhealthy and there is no previous image to fall back to.")
+                    }
+                    echo "Unhealthy. Rolling back to ${env.LIVE_COMMIT ?: env.LIVE_IMAGE}."
+                    startContainer(env.LIVE_IMAGE, env.LIVE_COMMIT)
+                    if (healthy()) {
+                        error("Rolled back to ${env.LIVE_COMMIT}; ${env.COMMIT} was NOT deployed.")
+                    }
+                    error("Rollback also failed. ${env.DEPLOY_ENV} is down and needs a human.")
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Dangling images only; tagged per-commit images are the rollback path.
+            sh '${PODMAN} image prune -f || true'
+            sh '${PODMAN} ps --filter name=sushi-ui- --format "{{.Names}}\t{{.Status}}\t{{.Image}}" || true'
+        }
+    }
+}
+
+/** Replace the running container with one from the given image. */
+void startContainer(String image, String commitLabel = null) {
+    def commit = commitLabel ?: env.COMMIT
+    sh """
+        ${PODMAN} rm -f ${env.CONTAINER} 2>/dev/null || true
+
+        # --network=host: the UI has to reach Jenkins on localhost:8080, and it
+        #   also publishes DEPLOY_PORT without a rootless port mapping.
+        # JENKINS_NODE_COOKIE: stops ProcessTreeKiller reaping conmon when this
+        #   build finishes, which would kill the container.
+        JENKINS_NODE_COOKIE=dontKillMe ${PODMAN} run -d \
+          --name ${env.CONTAINER} \
+          --network=host \
+          --label sushi.commit=${commit} \
+          --label sushi.branch=${env.DEPLOY_BRANCH} \
+          -e SUSHI_ENV=${env.DEPLOY_ENV} \
+          -e SUSHI_COMMIT=${commit} \
+          -e SUSHI_BRANCH=${env.DEPLOY_BRANCH} \
+          -e PORT=${env.DEPLOY_PORT} \
+          -e JENKINS_URL=http://localhost:8080 \
+          -e JENKINS_JOB_PATH=job/sushi \
+          -e PRISMSEQ_ROOT=/cmap/obelix/pod/prismSeq \
+          -e SUSHI_UI_DB=/data/sushi_ui.db \
+          -v ${env.DEPLOY_VOLUME}:/data \
+          -v /cmap/obelix/pod/prismSeq:/cmap/obelix/pod/prismSeq \
+          ${image}
+    """
+}
+
+/** Poll /api/health until it answers, or give up after ~30s. */
+boolean healthy() {
+    return sh(script: """
+        for i in \$(seq 1 30); do
+          if curl -fsS --max-time 3 http://localhost:${env.DEPLOY_PORT}/api/health >/dev/null 2>&1; then
+            exit 0
+          fi
+          sleep 1
+        done
+        exit 1
+    """, returnStatus: true) == 0
+}

@@ -82,81 +82,93 @@ All via environment variables; every one has a working default.
 
 ## Deploying
 
-Two environments on `vercingetorix-r8`, one per branch, auto-deployed on push:
+Two Jenkins jobs, one per branch, each running the UI as a detached podman
+container:
 
-| Branch | Environment | Port | Run database |
-| --- | --- | --- | --- |
-| `main` | production | 8100 | `/local/jenkins/sushi_ui.db` |
-| `develop` | develop | 8101 | `/local/jenkins/sushi_ui_develop.db` |
+| Job | Branch | Environment | Port | Run database |
+| --- | --- | --- | --- | --- |
+| `sushi-ui-main` | `main` | production | 8100 | volume `sushi-ui-db-main` |
+| `sushi-ui-develop` | `develop` | develop | 8101 | volume `sushi-ui-db-develop` |
 
 Push to `develop` and it is live within two minutes. Merge to `main` and
 production follows. Nothing to run by hand.
 
-**`develop` is not a sandbox.** There is one Jenkins job, so a build launched
-from the develop instance is a real pipeline run writing into the real build
-directory. Only the run history is separate. The UI shows an amber banner on
-any non-production instance, and the header always shows the environment and
-the deployed commit, so "did my change land?" is answerable from the page.
+**`develop` is not a sandbox.** There is one pipeline Jenkins job, so a build
+launched from the develop instance is a real pipeline run writing into the real
+build directory. Only the run history is separate. The UI shows an amber banner
+on any non-production instance, and the header always shows the environment and
+deployed commit, so "did my change land?" is answerable from the page.
+
+### Why Jenkins and not systemd
+
+We have no root on that VM, which rules out systemd units, `/etc/cron.d`,
+`/opt` and `/var/log`. Jenkins already runs there as a user with podman and the
+obelix mount, already polls this repo, and already gives us build history and
+console logs — so the deploy is a Jenkins job and needs no privileges we do not
+have.
+
+    ui/Dockerfile            multi-stage: node builds the SPA, python serves it
+    ui/.dockerignore          keeps the host .venv and dist/ out of the image
+    ui/deploy/Jenkinsfile     the deploy pipeline, shared by both jobs
 
 ### How it works
 
-`ui/deploy/deploy.sh <branch>` fetches and exits immediately if the branch has
-not moved. Otherwise it resets the checkout, builds the SPA, syncs the venv and
-restarts the unit — then polls `/api/health` for 30s. **If the new commit does
-not come up healthy it resets to the previous commit, rebuilds and restarts**,
-so an unattended deploy cannot leave an environment dead.
+[Jenkinsfile](deploy/Jenkinsfile) derives the environment from the branch it
+was checked out on, so the two jobs differ only in SCM configuration. It labels
+each container with the commit it is running, so the common case — nothing
+changed — skips straight to a health check and finishes in seconds.
 
-    ui/deploy/deploy.sh            per-environment deploy; idempotent, cron-safe
-    ui/deploy/install.sh           one-time root bootstrap
-    ui/deploy/sushi-ui@.service    systemd template, %i is the branch
-    ui/deploy/env.main             production config
-    ui/deploy/env.develop          develop config
+On a real change: build the image, replace the container, then poll
+`/api/health` for 30s. **If the new commit is unhealthy it restarts the
+previous image and fails the build**, so an unattended deploy cannot leave an
+environment dead. Per-commit image tags are the rollback path, which is why
+`post` only prunes dangling images.
 
-Three decisions worth knowing:
+Three things about running a server from a Jenkins job:
 
-- **Cron polling, not a webhook or hosted CI.** The VM is on an internal
-  network at `10.200.96.63`; github.com cannot reach it, so a webhook or a
-  GitHub-hosted runner has nothing to talk to. A self-hosted runner would work
-  but is another daemon to keep alive for what `git fetch` answers in 200ms.
-  Both cron entries exit silently when the branch has not moved.
-- **The SPA is built in a `node:20` podman container.** The VM has no node and
-  needs none at runtime; this avoids installing a toolchain on the host and
-  avoids committing `dist/` to the repo. `node_modules` is gitignored, so
-  `git reset --hard` leaves the npm cache intact between deploys.
-- **`deploy.sh` is wrapped in a `{ ... }` block.** A deploy can update
-  `deploy.sh` itself, and the brace forces bash to read the whole file before
-  executing, so a self-update cannot corrupt the run in progress.
+- **`JENKINS_NODE_COOKIE=dontKillMe` on `podman run`.** Jenkins'
+  ProcessTreeKiller reaps the build's descendants when it finishes, which
+  includes `conmon` and would kill the container.
+- **A `cron('H/15 * * * *')` trigger alongside `pollSCM`.** A detached
+  container does not come back after a reboot, and nothing else on the box will
+  restart it. The periodic run is the safety net; it is cheap because of the
+  commit-label check.
+- **`--network=host`.** The UI has to reach Jenkins on `localhost:8080`, and
+  this also publishes the port without a rootless port mapping.
+
+The image carries no `.git`, so the job passes `SUSHI_COMMIT` and
+`SUSHI_BRANCH` in as environment variables; `/api/health` prefers those and
+falls back to `git` when run from a checkout in dev.
 
 ### First-time setup
 
-    sudo /path/to/sushi/ui/deploy/install.sh
+Create two pipeline jobs in Jenkins — no shell access needed:
 
-Clones `/opt/sushi-ui/<branch>` for each environment, installs the systemd
-template and `/etc/cron.d/sushi-ui`, does the first deploy, and enables the
-units at boot.
-
-A branch that has not merged the UI yet is **skipped** rather than provisioned,
-and gets no cron entry — so bootstrapping while only `develop` has the code
-works, and you re-run `install.sh` once `main` catches up. Idempotent: re-run
-it after changing the unit file, the schedule, or the set of environments.
+1. **New Item → Pipeline**, named `sushi-ui-develop`.
+2. **Pipeline → Definition: Pipeline script from SCM**, SCM `git`, repo
+   `git@github.com:theprismlab/sushi.git`, **Branch Specifier** `*/develop`,
+   **Script Path** `ui/deploy/Jenkinsfile`.
+3. Save, then **Build Now** once. The triggers in the Jenkinsfile take over
+   after that first run.
+4. Repeat as `sushi-ui-main` with Branch Specifier `*/main`, once `main` has
+   the UI code.
 
 ### Operating it
 
-    systemctl status sushi-ui@main sushi-ui@develop
-    journalctl -u sushi-ui@develop -f            # application log
-    tail -f /var/log/sushi-ui-deploy.log         # deploy log
-    curl -s localhost:8100/api/health | jq       # environment, commit, jenkins, param drift
+    curl -s localhost:8101/api/health | jq    # environment, commit, jenkins, param drift
+    podman ps --filter name=sushi-ui-
+    podman logs -f sushi-ui-develop           # application log
 
-    sudo /opt/sushi-ui/main/ui/deploy/deploy.sh main --force    # redeploy unchanged
-    sudo systemctl stop sushi-ui@develop                        # take an env down
+Deploy history and console output are in the Jenkins job. To redeploy without a
+code change, build with `FORCE_REDEPLOY`. To take an environment down,
+`podman rm -f sushi-ui-develop` — but the 15-minute trigger will bring it back,
+so disable the job if you want it to stay down.
 
-To roll production back, revert on `main` and push — cron redeploys within two
-minutes. The run database lives outside the checkout, so no deploy or rollback
-can touch run history.
+To roll production back, revert on `main` and push; the job redeploys within two
+minutes. Run history lives in a named podman volume, so no deploy, rollback or
+`podman rm` touches it.
 
-Ports and database paths live in `ui/deploy/env.<branch>`, which is read by
-systemd rather than the app, so changing one needs a restart (a `--force`
-deploy does that).
+Ports and volumes are the `ENVIRONMENTS` map at the top of the Jenkinsfile.
 
 ## Security
 
