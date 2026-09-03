@@ -129,12 +129,16 @@ Three decisions worth knowing:
 
 ### First-time setup
 
-    sudo REPO=git@github.com:cmap/sushi.git /path/to/sushi/ui/deploy/install.sh
+    sudo /path/to/sushi/ui/deploy/install.sh
 
-Clones `/opt/sushi-ui/main` and `/opt/sushi-ui/develop`, installs the systemd
-template and `/etc/cron.d/sushi-ui`, does the first deploy of each, and enables
-both units at boot. Idempotent — re-run it after changing the unit file or the
-schedule.
+Clones `/opt/sushi-ui/<branch>` for each environment, installs the systemd
+template and `/etc/cron.d/sushi-ui`, does the first deploy, and enables the
+units at boot.
+
+A branch that has not merged the UI yet is **skipped** rather than provisioned,
+and gets no cron entry — so bootstrapping while only `develop` has the code
+works, and you re-run `install.sh` once `main` catches up. Idempotent: re-run
+it after changing the unit file, the schedule, or the set of environments.
 
 ### Operating it
 
