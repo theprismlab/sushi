@@ -90,6 +90,10 @@ input[type='text'], input:not([type]), select, textarea {
 input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
 input[type='checkbox'] { width: auto; accent-color: var(--accent); }
 textarea { resize: vertical; }
+/* A comma list has no spaces, so it is a single word: without this the
+   textarea scrolls sideways instead of wrapping and we are no better off
+   than the one-line input was. */
+.field textarea, table.mini textarea { overflow-wrap: anywhere; line-height: 1.45; }
 
 button, .button {
   background: var(--card-2); color: var(--text); border: 1px solid var(--line);

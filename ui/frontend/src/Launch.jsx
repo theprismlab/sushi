@@ -614,6 +614,15 @@ function Field({ spec, value, stock, fromPreset, onChange }) {
       ) : spec.type === 'bool' ? (
         <input id={id} type="checkbox" checked={!!value}
                onChange={(e) => onChange(spec.name, e.target.checked)} />
+      ) : spec.multiline ? (
+        // A textarea, not an input, because an input cannot wrap and these
+        // values are long enough that a single line hides most of them. Sized
+        // from the content so the whole value is visible without dragging;
+        // whether a field is multiline comes from the spec, so the element type
+        // never changes under a cursor mid-edit.
+        <textarea id={id} value={value ?? ''} spellCheck={false}
+                  rows={Math.min(6, Math.max(2, Math.ceil(String(value ?? '').length / 46)))}
+                  onChange={(e) => onChange(spec.name, e.target.value)} />
       ) : (
         <>
           <input id={id} list={listId} value={value ?? ''} autoComplete="off"

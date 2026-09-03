@@ -168,6 +168,13 @@ export default function ScreenTypes() {
                             <select value={value} onChange={(e) => setParam(i, name, e.target.value)}>
                               {spec.choices.map((c) => <option key={c} value={c}>{c}</option>)}
                             </select>
+                          ) : spec.multiline ? (
+                            // Same reason as the launch form: these values are
+                            // too long for one line, and this is the page where
+                            // they are actually edited.
+                            <textarea value={value} spellCheck={false}
+                                      rows={Math.min(6, Math.max(2, Math.ceil(String(value ?? '').length / 46)))}
+                                      onChange={(e) => setParam(i, name, e.target.value)} />
                           ) : (
                             <input value={value}
                                    onChange={(e) => setParam(i, name, e.target.value)} />

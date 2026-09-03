@@ -8,6 +8,10 @@
 #       advanced  -> behind the "Show advanced parameters" toggle
 # order within a group is the display order.
 #
+# multiline: true -> render as a wrapping textarea rather than a one-line
+#   input. For the values long enough that a single line truncates them, which
+#   is worse than useless: you cannot see what you are about to launch with.
+#
 # unordered: true -> comma-separated value the pipeline treats as a set, so a
 #   reordering is not a change and the override warning ignores it. Only set
 #   this where the pipeline source shows the value is exclusively grouped,
@@ -108,6 +112,7 @@ params:
       Must already contain the raw counts file from Nori. Derived from the
       preset and build name; edit only if the build lives somewhere else.
   - name: PERT_PLATES
+    multiline: true
     unordered: true  # membership filter: df[df.pert_plate.isin(...)]
     group: build
     type: string
@@ -165,6 +170,7 @@ params:
     default: trt_poscon
     label: Positive control pert_type
   - name: CONTROL_COLS
+    multiline: true
     unordered: true  # group_by(pick(all_of(union(...)))) and inner_join(by = union(...))
     group: controls
     type: string
@@ -172,6 +178,7 @@ params:
     label: Control columns
     help: Sample meta columns describing an individual negative control condition.
   - name: SIG_COLS
+    multiline: true
     unordered: true  # group_by(across(all_of(...))); synergy.R sorts them itself
     group: controls
     type: string
@@ -408,6 +415,7 @@ params:
     default: forward_read_barcode
     label: Barcode column
   - name: SEQUENCING_INDEX_COLS
+    multiline: true
     unordered: true  # distinct(pick(all_of(...))) and group_by in collate_counts
     group: sequencing
     type: string
@@ -415,6 +423,7 @@ params:
     label: Sequencing index columns
     help: Columns that uniquely identify every PCR well in the run.
   - name: ID_COLS
+    multiline: true
     group: sequencing
     type: string
     default: pcr_plate,pcr_well
@@ -429,6 +438,7 @@ params:
 
   # --------------------------------------------------------------- columns
   - name: CELL_LINE_COLS
+    multiline: true
     unordered: true  # group_by / join union, same as CONTROL_COLS
     group: columns
     type: string
@@ -578,6 +588,7 @@ params:
 
   # -------------------------------------------------------------- biomarker
   - name: BIOMARKER_FILE
+    multiline: true
     group: biomarker
     type: string
     default: /cmap/obelix/pod/biomarker/depmap_public_24q4.h5
@@ -622,6 +633,7 @@ params:
     default: https://api.clue.io/api/
     label: API URL
   - name: MERGE_PATTERNS
+    multiline: true
     group: pipeline
     type: string
     default: log2_auc_multivariate_biomarkers*,log2_auc_univariate_biomarkers*,median_l2fc_multivariate_biomarkers*,median_l2fc_univariate_biomarkers*,DRC_TABLE*
