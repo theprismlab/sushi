@@ -1,0 +1,616 @@
+# Catalog of every parameter declared in scripts/make_config_file.groovy.
+#
+# Nothing here may be invented: Jenkins rejects buildWithParameters calls that
+# include undeclared parameters, so this file must stay in sync with the
+# `parameters { ... }` block of the pipeline. test_backend.py asserts that.
+#
+# tier: primary   -> always visible in the launch form
+#       advanced  -> behind the "Show advanced parameters" toggle
+# order within a group is the display order.
+
+groups:
+  - id: build
+    label: Build
+    tier: primary
+    help: Identity and location of this build. Set the screen type first; everything else is prefilled from it.
+  - id: metadata
+    label: Metadata sources
+    tier: primary
+    help: Where cell line and sample metadata come from.
+  - id: controls
+    label: Controls & signatures
+    tier: primary
+    help: How negative/positive controls and unique treatment conditions are identified.
+  - id: modules
+    label: Core modules
+    tier: primary
+    help: The main pipeline steps, in execution order.
+  - id: qc_modules
+    label: QC modules
+    tier: primary
+  - id: analytics
+    label: Analytics modules
+    tier: primary
+  - id: portal
+    label: Portal & upload
+    tier: primary
+  - id: qc_thresholds
+    label: QC flag thresholds
+    tier: advanced
+    help: Written to qc_params.json. nc_raw_count_threshold and well_reads_threshold are derived from COUNT_THRESHOLD and are not settable here.
+  - id: sequencing
+    label: Sequencing & read collation
+    tier: advanced
+  - id: columns
+    label: Column names & numeric settings
+    tier: advanced
+  - id: combinations
+    label: Combinations / synergy
+    tier: advanced
+  - id: input_files
+    label: Input filenames
+    tier: advanced
+    help: Filenames relative to the build directory.
+  - id: output_files
+    label: Output filenames
+    tier: advanced
+    help: Filenames the pipeline writes into the build directory.
+  - id: biomarker
+    label: Biomarker inputs
+    tier: advanced
+  - id: pipeline
+    label: Pipeline version
+    tier: advanced
+    help: Advanced users only. Changing these changes which code runs.
+
+params:
+  # ---------------------------------------------------------------- build
+  - name: SCREEN_TYPE
+    group: build
+    type: choice
+    choices: [MTS_SEQ, CPS_SEQ, EPS_SEQ, APS_SEQ]
+    default: MTS_SEQ
+    label: Screen type (pipeline value)
+    help: >
+      Value passed to the pipeline. Set automatically from the selected preset.
+      Note this is not always the same as the directory the build lives in.
+  - name: BUILD_NAME
+    group: build
+    type: string
+    default: ''
+    required: true
+    label: Build name
+    help: Used to name output files. Should match the build directory name.
+  - name: SCREEN
+    group: build
+    type: string
+    default: ''
+    required: true
+    label: Screen
+    help: >
+      Screen this build belongs to. Required for COMET/cellDB metadata and for
+      portal upload. Must match the screen in the sample metadata. Defaults to
+      the build name.
+  - name: BUILD_DIR
+    group: build
+    type: string
+    default: /cmap/obelix/pod/prismSeq/
+    required: true
+    label: Build directory
+    help: >
+      Must already contain the raw counts file from Nori. Derived from the
+      preset and build name; edit only if the build lives somewhere else.
+  - name: PERT_PLATES
+    group: build
+    type: string
+    default: ''
+    label: Pert plates
+    help: Comma separated pert_plates to include. Empty means all plates for the screen.
+  - name: COUNT_THRESHOLD
+    group: build
+    type: string
+    default: '100'
+    label: Count threshold
+    help: >
+      Cell lines with median counts below this are dropped. Also drives
+      well_reads_threshold, nc_raw_count_threshold, LOW_ABUNDANCE_THRESHOLD
+      (0.5x) and READ_DETECTION_LIMIT (0.25x).
+
+  # ------------------------------------------------------------- metadata
+  - name: CREATE_CELLDB_METADATA
+    group: metadata
+    type: bool
+    default: true
+    label: Pull cell line & pool metadata from cellDB
+    help: Requires every cell_set in the sample meta to exist in cellDB.
+  - name: CREATE_SAMPLE_META
+    group: metadata
+    type: bool
+    default: true
+    label: Pull sample metadata from COMET
+    help: Project must be registered with all metadata steps complete.
+
+  # ------------------------------------------------------------- controls
+  - name: CONTROL_BARCODE_META
+    group: controls
+    type: string
+    default: ha_mod
+    label: Control barcode meta
+    help: >
+      Lowercase cb_ladder name if the CBs are in cellDB (e.g. h-a, ha_mod),
+      otherwise a csv filename in the build directory.
+  - name: NORM_METHOD
+    group: controls
+    type: choice
+    choices: [normalize_then_shift, normalize_with_pseudocount]
+    default: normalize_then_shift
+    label: Normalization method
+  - name: CTL_TYPES
+    group: controls
+    type: string
+    default: ctl_vehicle
+    label: Negative control pert_type
+  - name: POSCON_TYPE
+    group: controls
+    type: string
+    default: trt_poscon
+    label: Positive control pert_type
+  - name: CONTROL_COLS
+    group: controls
+    type: string
+    default: cell_set,day,pcr_plate,replicate_plate,pert_vehicle
+    label: Control columns
+    help: Sample meta columns describing an individual negative control condition.
+  - name: SIG_COLS
+    group: controls
+    type: string
+    default: cell_set,pert_type,pert_name,pert_id,pert_dose,pert_dose_unit,day,x_project_id,pert_plate,pert_vehicle
+    label: Signature columns
+    help: >
+      Sample meta columns describing a unique treatment condition. Should NOT
+      include replicate information such as tech_rep or bio_rep.
+
+  # -------------------------------------------------------------- modules
+  - name: COLLATE_FASTQ_READS
+    group: modules
+    type: bool
+    default: true
+    label: Collate FASTQ reads
+    help: Checks reads come from expected flowcells/lanes, then sums counts across SEQUENCING_INDEX_COLS.
+  - name: FILTER_COUNTS
+    group: modules
+    type: bool
+    default: true
+    label: Filter counts
+    help: Assigns reads to treatment conditions and cell lines; drops non-matching reads and duplicated lines.
+  - name: FILTER_SKIPPED_WELLS
+    group: modules
+    type: bool
+    default: true
+    label: Filter skipped wells
+    help: Drops wells the echo skipped. Runs as part of filter counts.
+  - name: REMOVE_DATA
+    group: modules
+    type: bool
+    default: false
+    label: Remove data
+    help: Uses data_to_remove.csv in the build directory. Runs as part of filter counts.
+  - name: CBNORMALIZE
+    group: modules
+    type: bool
+    default: true
+    label: Normalize
+    help: Requires vehicle controls and a control barcode ladder.
+  - name: COMPUTE_LFC
+    group: modules
+    type: bool
+    default: true
+    label: Compute log fold change
+  - name: BIAS_CORRECTION
+    group: modules
+    type: bool
+    default: true
+    label: Bias correction
+    help: Corrects fold changes using cell line growth annotations.
+  - name: COLLAPSE
+    group: modules
+    type: bool
+    default: true
+    label: Collapse replicates
+    help: Median collapses biological replicates.
+
+  # ----------------------------------------------------------- qc modules
+  - name: GENERATE_WELL_METRICS
+    group: qc_modules
+    type: bool
+    default: true
+    label: Well metrics
+  - name: GENERATE_QC_TABLES
+    group: qc_modules
+    type: bool
+    default: true
+    label: QC tables
+  - name: GENERATE_QC_TABLES_2
+    group: qc_modules
+    type: bool
+    default: true
+    label: QC tables (post-LFC)
+    help: Only valid if Compute log fold change is on.
+  - name: QC_IMAGES
+    group: qc_modules
+    type: bool
+    default: false
+    label: QC images
+  - name: FILTER_QC_FLAGS
+    group: qc_modules
+    type: bool
+    default: true
+    label: Filter QC flags
+  - name: FILTER_FAILED_LINES
+    group: qc_modules
+    type: bool
+    default: true
+    label: Filter failed cell lines
+
+  # ------------------------------------------------------------ analytics
+  - name: DRC
+    group: analytics
+    type: bool
+    default: false
+    label: Dose response curves
+  - name: SYNERGY
+    group: analytics
+    type: bool
+    default: false
+    label: Synergy
+    help: For combination screens (CPS).
+  - name: UNIVARIATE_BIOMARKER
+    group: analytics
+    type: bool
+    default: false
+    label: Univariate biomarker
+  - name: MULTIVARIATE_BIOMARKER
+    group: analytics
+    type: bool
+    default: false
+    label: Multivariate biomarker
+  - name: LFC_BIOMARKER
+    group: analytics
+    type: bool
+    default: false
+    label: Biomarker on LFC
+    help: Requires Compute log fold change.
+  - name: AUC_BIOMARKER
+    group: analytics
+    type: bool
+    default: false
+    label: Biomarker on AUC
+    help: Requires Dose response curves.
+  - name: SYNERGY_BIOMARKER
+    group: analytics
+    type: bool
+    default: false
+    label: Biomarker on synergy
+    help: Requires Synergy.
+
+  # --------------------------------------------------------------- portal
+  - name: CONVERT_SUSHI
+    group: portal
+    type: bool
+    default: true
+    label: Convert for MTS pipeline & upload to S3
+  - name: TEST_DATASET
+    group: portal
+    type: bool
+    default: false
+    label: Upload to test bucket
+    help: test-macchiato.clue.io instead of production.
+  - name: UPLOAD_TO_BQ
+    group: portal
+    type: bool
+    default: true
+    label: Upload results to BigQuery
+
+  # -------------------------------------------------------- qc thresholds
+  - name: nc_variability_threshold
+    group: qc_thresholds
+    type: string
+    default: '1'
+    label: Negative control variability
+  - name: error_rate_threshold
+    group: qc_thresholds
+    type: string
+    default: '0.05'
+    label: Error rate
+  - name: pc_viability_threshold
+    group: qc_thresholds
+    type: string
+    default: '0.25'
+    label: Positive control viability
+  - name: contamination_threshold
+    group: qc_thresholds
+    type: string
+    default: '0.8'
+    label: Fraction of expected reads
+  - name: cb_mae_threshold
+    group: qc_thresholds
+    type: string
+    default: '1'
+    label: Control barcode MAE
+  - name: cb_spearman_threshold
+    group: qc_thresholds
+    type: string
+    default: '0.8'
+    label: Control barcode Spearman
+  - name: cb_cl_ratio_low_negcon
+    group: qc_thresholds
+    type: string
+    default: '0'
+    label: CB/CL ratio low (negcon)
+  - name: cb_cl_ratio_high_negcon
+    group: qc_thresholds
+    type: string
+    default: '100'
+    label: CB/CL ratio high (negcon)
+  - name: cb_cl_ratio_low_poscon
+    group: qc_thresholds
+    type: string
+    default: '0'
+    label: CB/CL ratio low (poscon)
+  - name: cb_cl_ratio_high_poscon
+    group: qc_thresholds
+    type: string
+    default: '100'
+    label: CB/CL ratio high (poscon)
+  - name: pool_well_delta_threshold
+    group: qc_thresholds
+    type: string
+    default: '5'
+    label: Pool/well delta
+    help: Max delta of log2_normalized_n between a cell line and its pool median before the line is an outlier.
+  - name: pool_well_fraction_threshold
+    group: qc_thresholds
+    type: string
+    default: '0.4'
+    label: Pool/well outlier fraction
+    help: Minimum fraction of a pool that must be outliers to flag that pool/well.
+  - name: fraction_expected_controls
+    group: qc_thresholds
+    type: string
+    default: '0.667'
+    label: Fraction of expected controls
+    help: If vehicle or poscon wells fall below this in a pcr_plate, the whole plate is removed.
+
+  # ------------------------------------------------------------ sequencing
+  - name: SEQ_TYPE
+    group: sequencing
+    type: choice
+    choices: [DRAGEN, MiSeq, HiSeq, NovaSeq]
+    default: NovaSeq
+    label: Sequencer / pipeline
+    help: >
+      Sets INDEX_1, INDEX_2 and BARCODE_SUFFIX. DRAGEN and NovaSeq reverse
+      index 2.
+  - name: BARCODE_COL
+    group: sequencing
+    type: string
+    default: forward_read_barcode
+    label: Barcode column
+  - name: SEQUENCING_INDEX_COLS
+    group: sequencing
+    type: string
+    default: flowcell_names,flowcell_lanes,index_1,index_2
+    label: Sequencing index columns
+    help: Columns that uniquely identify every PCR well in the run.
+  - name: ID_COLS
+    group: sequencing
+    type: string
+    default: pcr_plate,pcr_well
+    label: ID columns
+    help: Columns forming a unique ID for each sample-replicate.
+  - name: CHUNK_SIZE
+    group: sequencing
+    type: string
+    default: '10000000'
+    label: Chunk size
+    help: Rows per chunk when streaming the Nori output.
+
+  # --------------------------------------------------------------- columns
+  - name: CELL_LINE_COLS
+    group: columns
+    type: string
+    default: pool_id,depmap_id,lua,cell_set,growth_condition
+    label: Cell line columns
+  - name: COUNT_COL_NAME
+    group: columns
+    type: string
+    default: log2_normalized_n
+    label: Count column
+    help: Numerical column used to compute log2 fold changes.
+  - name: BIO_REP_COL
+    group: columns
+    type: string
+    default: bio_rep
+    label: Biological replicate column
+  - name: L2FC_COLUMN
+    group: columns
+    type: string
+    default: l2fc
+    label: L2FC column
+  - name: COLLAPSED_L2FC_COLUMN
+    group: columns
+    type: string
+    default: median_l2fc
+    label: Collapsed L2FC column
+  - name: GROWTH_PATTERN_COL
+    group: columns
+    type: string
+    default: growth_condition
+    label: Growth annotation column
+  - name: MT_FILTER
+    group: columns
+    type: choice
+    choices: ['FALSE', 'TRUE']
+    default: 'TRUE'
+    label: Monotonicity filter
+  - name: VIABILITY_CAP
+    group: columns
+    type: string
+    default: '1.5'
+    label: Viability cap
+  - name: PSEUDOCOUNT
+    group: columns
+    type: string
+    default: '0'
+    label: Pseudocount
+
+  # ---------------------------------------------------------- combinations
+  - name: COMBINATION_COL
+    group: combinations
+    type: string
+    default: is_combination
+    label: Combination column
+  - name: N_SAMPLES
+    group: combinations
+    type: string
+    default: '10000'
+    label: Resampling size
+  - name: SYNERGY_L2FC_COL
+    group: combinations
+    type: string
+    default: median_l2fc_uncorrected
+    label: Synergy L2FC column
+    help: Column in collapsed_l2fc.csv used for synergy calculations.
+  - name: SYNERGY_FILE
+    group: combinations
+    type: string
+    default: synergy_scores.csv
+    label: Synergy scores file
+  - name: SYNERGY_COL
+    group: combinations
+    type: string
+    default: synergy
+    label: Synergy column
+
+  # ----------------------------------------------------------- input files
+  - name: RAW_COUNTS_UNCOLLAPSED
+    group: input_files
+    type: string
+    default: raw_counts_uncollapsed.csv.gz
+    label: Raw counts (from Nori)
+    exists_check: true
+  - name: SAMPLE_META
+    group: input_files
+    type: string
+    default: sample_meta.csv
+    label: Sample metadata
+    exists_check: true
+  - name: CELL_SET_AND_POOL_META
+    group: input_files
+    type: string
+    default: cell_set_and_pool_meta.csv
+    label: Cell set & pool metadata
+  - name: CELL_LINE_META
+    group: input_files
+    type: string
+    default: cell_line_meta.csv
+    label: Cell line metadata
+  - name: QC_PARAMS
+    group: input_files
+    type: string
+    default: qc_params.json
+    label: QC params file
+
+  # ---------------------------------------------------------- output files
+  - name: PRISM_BARCODE_COUNTS
+    group: output_files
+    type: string
+    default: prism_barcode_counts.csv
+    label: PRISM barcode counts
+  - name: UNKNOWN_BARCODE_COUNTS
+    group: output_files
+    type: string
+    default: unknown_barcode_counts.csv
+    label: Unknown barcode counts
+  - name: ANNOTATED_COUNTS
+    group: output_files
+    type: string
+    default: annotated_counts.csv
+    label: Annotated counts
+  - name: FILTERED_COUNTS
+    group: output_files
+    type: string
+    default: filtered_counts.csv
+    label: Filtered counts
+  - name: NORMALIZED_COUNTS
+    group: output_files
+    type: string
+    default: normalized_counts.csv
+    label: Normalized counts
+  - name: LFC
+    group: output_files
+    type: string
+    default: l2fc.csv
+    label: L2FC
+  - name: COLLAPSED_LFC
+    group: output_files
+    type: string
+    default: collapsed_l2fc.csv
+    label: Collapsed L2FC
+  - name: SKIPPED_WELLS
+    group: output_files
+    type: string
+    default: skipped_wells.csv
+    label: Skipped wells
+
+  # -------------------------------------------------------------- biomarker
+  - name: BIOMARKER_FILE
+    group: biomarker
+    type: string
+    default: /cmap/obelix/pod/biomarker/depmap_public_24q4.h5
+    label: Biomarker reference
+  - name: DR_COLUMN
+    group: biomarker
+    type: string
+    default: log2_auc
+    label: AUC column
+  - name: DR_PATH
+    group: biomarker
+    type: string
+    default: DRC_TABLE.csv
+    label: DRC table
+
+  # --------------------------------------------------------------- pipeline
+  - name: GIT_BRANCH
+    group: pipeline
+    type: string
+    default: main
+    label: Pipeline branch
+  - name: USE_LATEST
+    group: pipeline
+    type: bool
+    default: true
+    label: Use latest commit on branch
+  - name: COMMIT_ID
+    group: pipeline
+    type: string
+    default: ''
+    label: Pin to commit
+    help: Only used when "Use latest commit" is off.
+  - name: TRIGGER_BUILD
+    group: pipeline
+    type: bool
+    default: true
+    label: Actually run the pipeline
+    help: Off means only config.json is regenerated; no modules run.
+  - name: API_URL
+    group: pipeline
+    type: string
+    default: https://api.clue.io/api/
+    label: API URL
+  - name: MERGE_PATTERNS
+    group: pipeline
+    type: string
+    default: log2_auc_multivariate_biomarkers*,log2_auc_univariate_biomarkers*,median_l2fc_multivariate_biomarkers*,median_l2fc_univariate_biomarkers*,DRC_TABLE*
+    label: Merge patterns
+    help: Patterns searched when merging files by project.
