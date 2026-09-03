@@ -17,9 +17,6 @@ presets:
     reference: MTS032
     params:
       SCREEN_TYPE: MTS_SEQ
-      CONTROL_BARCODE_META: ha_mod
-      COUNT_THRESHOLD: '100'
-      CREATE_CELLDB_METADATA: true
 
   - id: EPS_SEQ
     label: EPS — Extended Profiling Screen
@@ -27,9 +24,7 @@ presets:
     reference: EPS008
     params:
       SCREEN_TYPE: EPS_SEQ
-      CONTROL_BARCODE_META: h-a
       COUNT_THRESHOLD: '40'
-      CREATE_CELLDB_METADATA: true
       nc_variability_threshold: '1.5'
 
   - id: APS_SEQ
@@ -41,10 +36,6 @@ presets:
     # Confirm before relying on this for a real APS run.
     params:
       SCREEN_TYPE: APS_SEQ
-      CONTROL_BARCODE_META: ha_mod
-      COUNT_THRESHOLD: '100'
-      CREATE_CELLDB_METADATA: true
-      CREATE_SAMPLE_META: true
 
   - id: AIR_SEQ
     label: AIR — Anchor Irradiation Screen
@@ -57,9 +48,6 @@ presets:
     # and to params.yml, then change this line.
     params:
       SCREEN_TYPE: APS_SEQ
-      CONTROL_BARCODE_META: ha_mod
-      COUNT_THRESHOLD: '100'
-      CREATE_CELLDB_METADATA: false
 
   - id: CPS_SEQ
     label: CPS — Combination Profiling Screen
@@ -67,7 +55,7 @@ presets:
     reference: CPS016
     params:
       SCREEN_TYPE: CPS_SEQ
-      CONTROL_BARCODE_META: ha_mod
       COUNT_THRESHOLD: '100'
-      CREATE_CELLDB_METADATA: false
       SYNERGY: true
+      SIG_COLS: 'cell_set,pert_type,pert_name,pert_id,pert_dose,pert_dose_unit,day,x_project_id,pert_plate,pert_vehicle,pert2_id,pert2_name,pert2_dose,pert2_dose_unit,pert2_vehicle,is_combination'
+

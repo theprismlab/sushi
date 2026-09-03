@@ -126,7 +126,7 @@ params:
   - name: CREATE_SAMPLE_META
     group: metadata
     type: bool
-    default: false
+    default: true
     label: Pull sample metadata from COMET
     help: Project must be registered with all metadata steps complete.
 
@@ -134,7 +134,7 @@ params:
   - name: CONTROL_BARCODE_META
     group: controls
     type: string
-    default: h-a
+    default: ha_mod
     label: Control barcode meta
     help: >
       Lowercase cb_ladder name if the CBs are in cellDB (e.g. h-a, ha_mod),
@@ -233,7 +233,7 @@ params:
   - name: GENERATE_QC_TABLES_2
     group: qc_modules
     type: bool
-    default: false
+    default: true
     label: QC tables (post-LFC)
     help: Only valid if Compute log fold change is on.
   - name: QC_IMAGES
@@ -297,7 +297,7 @@ params:
   - name: CONVERT_SUSHI
     group: portal
     type: bool
-    default: false
+    default: true
     label: Convert for MTS pipeline & upload to S3
   - name: TEST_DATASET
     group: portal
@@ -308,7 +308,7 @@ params:
   - name: UPLOAD_TO_BQ
     group: portal
     type: bool
-    default: false
+    default: true
     label: Upload results to BigQuery
 
   # -------------------------------------------------------- qc thresholds
@@ -386,7 +386,7 @@ params:
     group: sequencing
     type: choice
     choices: [DRAGEN, MiSeq, HiSeq, NovaSeq]
-    default: DRAGEN
+    default: NovaSeq
     label: Sequencer / pipeline
     help: >
       Sets INDEX_1, INDEX_2 and BARCODE_SUFFIX. DRAGEN and NovaSeq reverse
@@ -399,7 +399,7 @@ params:
   - name: SEQUENCING_INDEX_COLS
     group: sequencing
     type: string
-    default: flowcell_names,index_1,index_2
+    default: flowcell_names,flowcell_lanes,index_1,index_2
     label: Sequencing index columns
     help: Columns that uniquely identify every PCR well in the run.
   - name: ID_COLS
@@ -451,7 +451,7 @@ params:
     group: columns
     type: choice
     choices: ['FALSE', 'TRUE']
-    default: 'FALSE'
+    default: 'TRUE'
     label: Monotonicity filter
   - name: VIABILITY_CAP
     group: columns
