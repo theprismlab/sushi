@@ -139,10 +139,6 @@ function SignInWall({ onSignedIn }) {
           <label htmlFor="wall-password">Password</label>
           <input id="wall-password" type="password" value={password}
                  onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-          <p className="help">
-            If Jenkins rejects it, an API token from <code>/user/&lt;you&gt;/configure</code> works
-            here too — some Jenkins configurations only accept tokens over the API.
-          </p>
         </div>
 
         {error && <div className="banner error">{error}</div>}
