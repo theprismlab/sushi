@@ -347,6 +347,37 @@ def infer_preset(rel_path: str) -> tuple[str, str]:
     return presets[0]["id"], "nothing in the path identifies a screen type"
 
 
+# An existing config.json is what a re-run will actually use: the pipeline only
+# fills in keys the file is missing, so the file wins over anything the form
+# sends. Prefilling from it is therefore more truthful than the screen-type
+# defaults, and it stops the override warning firing over values nobody changed.
+#
+# Three keys are deliberately not taken from it:
+#   BUILD_DIR, BUILD_NAME  owned by the directory just picked, which may be a
+#                          copy or rename of the one the config was written in.
+#   SCREEN_TYPE            the directory decides -- see infer_preset; two
+#                          reference builds carry one that disagrees with where
+#                          they live.
+CONFIG_OVERLAY_EXCLUDES = frozenset({"BUILD_DIR", "BUILD_NAME", "SCREEN_TYPE"})
+
+
+def config_overlay(build_dir: Path) -> dict:
+    """Values from a build's config.json that the form should adopt.
+
+    Filtered to catalog parameters, which also keeps API_KEY, COMMIT, TIMESTAMP
+    and the derived thresholds out of the form entirely.
+    """
+    try:
+        raw = json.loads((build_dir / "config.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    known = param_index()
+    return {k: v for k, v in raw.items()
+            if k in known and k not in CONFIG_OVERLAY_EXCLUDES}
+
+
 def defaults_for_path(rel_path: str, preset_override: str = "") -> dict:
     """Resolve a build path to a screen type and a full set of form values."""
     rel = resolve_rel(rel_path)
@@ -358,13 +389,25 @@ def defaults_for_path(rel_path: str, preset_override: str = "") -> dict:
 
     build_dir = os.path.join(PRISMSEQ_ROOT, rel) if rel else PRISMSEQ_ROOT + "/"
     target = Path(build_dir)
+    overlay = config_overlay(target)
+    # Precedence depends on how the screen type was decided. Inferred from the
+    # path, the file is the better authority -- it is what a re-run will use.
+    # Clicked explicitly, the click is a deliberate "apply this type's
+    # defaults", so it beats the file for the params the type actually sets.
+    type_params = preset(preset_id)["params"] if preset_override else {}
+    from_config = {k: v for k, v in overlay.items() if k not in type_params}
     return {
         "path": rel,
         "preset": preset_id,
         "preset_reason": reason,
         "inferred": not preset_override,
-        "values": defaults_for(preset_id, PurePosixPath(rel).name if rel else "", build_dir),
+        "values": {**defaults_for(preset_id, PurePosixPath(rel).name if rel else "", build_dir),
+                   **from_config},
+        "overridden_by_type": sorted(set(overlay) & set(type_params)),
         "from_preset": sorted(preset(preset_id)["params"]),
+        # Sent as values, not just names, so the form can tell whether a field
+        # still holds what the config said or has since been edited.
+        "from_config": from_config,
         "build_dir": build_dir,
         "exists": target.is_dir(),
         "has_config": (target / "config.json").is_file(),

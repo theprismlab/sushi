@@ -9,6 +9,10 @@ const MODULE_GROUPS = new Set(['modules', 'qc_modules', 'analytics', 'portal', '
 // picks them up without threading a prop through four call sites.
 const SuggestContext = createContext(null)
 
+// Values an existing config.json supplied, so a field can say where it came
+// from -- and stop saying so the moment it is edited away from that value.
+const ConfigContext = createContext(null)
+
 // BUILD_DIR is owned by the path picker in step 1, so it is not rendered as a
 // free-text field; BUILD_NAME has its own input above the rest of the group.
 const BUILD_FIELDS_HANDLED_ELSEWHERE = new Set(['BUILD_NAME', 'BUILD_DIR'])
@@ -115,16 +119,23 @@ export default function Launch() {
     setValues((v) => (v && String(v[name]) !== String(value) ? { ...v, [name]: value } : v))
   }, [])
 
+  const configValues = resolved?.from_config || null
+
   const setValue = useCallback((name, value) => {
     setTouched((t) => new Set(t).add(name))
     setValues((v) => {
       const next = { ...v, [name]: value }
-      // Build name still seeds SCREEN, but no longer rewrites BUILD_DIR --
-      // the path picker owns that now.
-      if (name === 'BUILD_NAME' && !touched.has('SCREEN')) next.SCREEN = value
+      // Build name seeds SCREEN -- but not BUILD_DIR, which the path picker
+      // owns, and never over a screen the build's existing config.json
+      // declares: those legitimately differ, e.g. build MTS030_PMTS089_SUBSET
+      // belongs to screen MTS030.
+      if (name === 'BUILD_NAME' && !touched.has('SCREEN')
+          && !(configValues && 'SCREEN' in configValues)) {
+        next.SCREEN = value
+      }
       return next
     })
-  }, [touched])
+  }, [touched, configValues])
 
   // Preflight is cheap (stat calls and a json read) so run it as they type --
   // but not before a build directory is picked. Until then BUILD_DIR is still
@@ -205,6 +216,7 @@ export default function Launch() {
 
   return (
     <SuggestContext.Provider value={suggestions}>
+    <ConfigContext.Provider value={configValues}>
     <div className="launch">
       <section className="card">
         <h2>1. Build directory</h2>
@@ -449,6 +461,7 @@ export default function Launch() {
         </div>
       </section>
     </div>
+    </ConfigContext.Provider>
     </SuggestContext.Provider>
   )
 }
@@ -633,6 +646,14 @@ function parentPath(rel) {
   return parts.slice(0, -1).join('/')
 }
 
+/** Whether a field still holds exactly what the build's config.json said.
+ *  Comparing the value, not just the name, means the badge disappears by
+ *  itself once someone edits the field. */
+function matchesConfig(configValues, name, value) {
+  return Boolean(configValues && name in configValues
+                 && String(configValues[name]) === String(value))
+}
+
 function changedClass(value, stock, fromPreset) {
   if (String(value) !== String(stock)) return fromPreset ? 'preset-set' : 'user-set'
   return ''
@@ -750,14 +771,16 @@ function Field({ spec, value, stock, fromPreset, onChange, tag, extraHelp }) {
   const id = `f-${spec.name}`
   const mark = changedClass(value, stock, fromPreset)
   const suggest = useContext(SuggestContext)?.[spec.name]
+  const fromConfig = matchesConfig(useContext(ConfigContext), spec.name, value)
   const listId = suggest?.values?.length ? `sug-${spec.name}` : undefined
   return (
     <div className={`field ${mark}`}>
       <label htmlFor={id}>
         {spec.label || spec.name}
         {spec.required && <span className="req">required</span>}
-        {tag ? <span className="tag">{tag}</span> : mark === 'preset-set'
-          ? <span className="tag">screen default</span>
+        {tag ? <span className="tag">{tag}</span>
+          : fromConfig ? <span className="tag">from config.json</span>
+          : mark === 'preset-set' ? <span className="tag">screen default</span>
           : mark === 'user-set' ? <span className="tag alt">edited</span> : null}
       </label>
       {spec.type === 'choice' ? (
@@ -821,12 +844,14 @@ function CbLadderNote({ info, value }) {
 
 function Toggle({ spec, value, stock, fromPreset, onChange }) {
   const mark = changedClass(value, stock, fromPreset)
+  const fromConfig = matchesConfig(useContext(ConfigContext), spec.name, value)
   return (
     <label className={`toggle ${value ? 'on' : ''} ${mark}`} title={spec.help || spec.name}>
       <input type="checkbox" checked={!!value} onChange={(e) => onChange(spec.name, e.target.checked)} />
       <span>
         {spec.label}
-        {mark === 'preset-set' && <span className="tag">screen default</span>}
+        {fromConfig ? <span className="tag">from config.json</span>
+          : mark === 'preset-set' ? <span className="tag">screen default</span> : null}
       </span>
       <code className="pname">{spec.name}</code>
     </label>
