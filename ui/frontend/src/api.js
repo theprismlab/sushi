@@ -1,6 +1,7 @@
 async function request(path, options = {}) {
   const res = await fetch(`/api${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin', // carry the session cookie
     ...options,
   })
   const body = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text()
@@ -14,9 +15,19 @@ async function request(path, options = {}) {
 export const api = {
   catalog: () => request('/catalog'),
   health: () => request('/health'),
-  presetDefaults: (preset, buildName) =>
-    request(`/presets/${preset}/defaults?build_name=${encodeURIComponent(buildName || '')}`),
-  buildDirs: (preset) => request(`/builds?preset=${encodeURIComponent(preset)}`),
+  session: () => request('/session'),
+  signIn: (user, token) =>
+    request('/session', { method: 'POST', body: JSON.stringify({ user, token }) }),
+  signOut: () => request('/session', { method: 'DELETE' }),
+  buildPaths: () => request('/build-paths'),
+  ls: (path) => request(`/ls?path=${encodeURIComponent(path || '')}`),
+  suggestions: () => request('/suggestions'),
+  screenTypes: () => request('/screen-types'),
+  saveScreenTypes: (presets) =>
+    request('/screen-types', { method: 'PUT', body: JSON.stringify({ presets }) }),
+  resetScreenTypes: () => request('/screen-types/reset', { method: 'POST' }),
+  pathDefaults: (path, preset) =>
+    request(`/path-defaults?path=${encodeURIComponent(path || '')}&preset=${encodeURIComponent(preset || '')}`),
   preflight: (body) => request('/preflight', { method: 'POST', body: JSON.stringify(body) }),
   launch: (body) => request('/runs', { method: 'POST', body: JSON.stringify(body) }),
   runs: (params) => request(`/runs?${new URLSearchParams(params)}`),

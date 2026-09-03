@@ -11,13 +11,22 @@ remains a working fallback.
 
 ## What it adds over the form
 
-- **Screen-type presets.** Pick `MTS_SEQ` / `EPS_SEQ` / `APS_SEQ` / `AIR_SEQ` /
-  `CPS_SEQ` and every parameter is prefilled from the most recent build of that
-  type. Values the preset moved off the stock default are badged, so the diff
-  against "normal" is visible instead of buried in 90 fields.
+- **The build directory comes first.** You browse the real `prismSeq` listings
+  to a directory that exists, and the screen type, build name and screen are
+  derived from it. The browser is keyboard-driven: type to narrow the current
+  level, `↑`/`↓` to move, `Enter` to open a folder or select a build,
+  `Backspace` on an empty filter to go up. Two or more characters also search
+  every build path, so you can jump to a build without knowing which
+  screen-type folder holds it.
+- **Screen-type defaults you can edit.** The Screen types page owns what each
+  type prefills. Values the type moved off the stock default are badged on the
+  form, so the diff against "normal" is visible instead of buried in 90 fields.
 - **Three tiers instead of one flat list.** Build identity, modules and
   controls are on screen; the ~60 filenames, column names and QC thresholds sit
   behind one disclosure.
+- **Real values where they exist.** `CONTROL_BARCODE_META` offers the control
+  barcode ladders actually registered in cellDB. It stays a text field, because
+  the pipeline also accepts a CSV filename in the build directory.
 - **Preflight.** Before a build is queued: required fields, numeric fields,
   module dependencies (`AUC_BIOMARKER` without `DRC`, `GENERATE_QC_TABLES_2`
   without `COMPUTE_LFC`, …), whether the build directory exists, and whether
@@ -33,13 +42,32 @@ remains a working fallback.
   `config.json`, so before this there was no record of which steps a build
   actually performed.
 
+## Identity
+
+Sign-in is with a **Jenkins user ID and API token** (from
+`/user/<you>/configure` in Jenkins — not the web password). This is not
+decoration:
+
+- This Jenkins gives anonymous *read* access but not `Job/Build`, so a build
+  cannot be queued without credentials at all.
+- It removes the self-reported name box. "Launched by" is whatever Jenkins says
+  the account's full name is, so the run log cannot be filled in wrongly.
+
+Credentials are exchanged for an opaque session id in an `HttpOnly` cookie and
+held **in memory** — a restart signs everyone out, and nothing writes API
+tokens to disk. That means **the service must run as a single worker**; with
+several uvicorn workers a request can land on a process that has never seen the
+session.
+
 ## Layout
 
     ui/backend/pyproject.toml  its own uv project -- see below
     ui/backend/params.yml      every parameter the Jenkins job declares: type, default, tier, help
-    ui/backend/presets.yml     per-screen-type overrides (only what differs from stock)
-    ui/backend/catalog.py      loads the yml, resolves presets, validates
+    ui/backend/presets.yml     seed for the screen-type store; the UI edits the store, not this
+    ui/backend/catalog.py      loads the yml, resolves screen types, walks the build tree, validates
     ui/backend/jenkins.py      Jenkins REST client (trigger, queue, status, console)
+    ui/backend/session.py      Jenkins-credential sessions
+    ui/backend/celldb.py       cellDB lookups for form suggestions
     ui/backend/db.py           SQLite run records
     ui/backend/app.py          FastAPI routes
     ui/frontend/               React + Vite SPA
@@ -57,18 +85,61 @@ overlap in dependencies.
 sent a parameter the job does not declare. `test_backend.py` parses the groovy
 and asserts both directions, and `/api/health` reports drift at runtime.
 
+Only one direction of drift is fatal. A parameter we send that the job does not
+declare kills the build; a parameter the job declares that we never send just
+keeps its job default. The health check reports them separately. Note that the
+parameter-separator plugin declares section headings (`core_modules`,
+`do_not_edit`, …) as parameter definitions — those are filtered out, or they
+show up as permanent phantom drift.
+
+## Screen-type defaults
+
+`presets.yml` in git is a **seed**. The first save on the Screen types page
+writes `SUSHI_UI_PRESETS` (`presets.local.yml` beside the backend by default)
+and that store is authoritative from then on; "Revert to shipped defaults"
+deletes it and falls back to the seed. Put the store somewhere backed up.
+
+Each type carries a `dir`, which is how a build path is mapped back to a screen
+type. Inference order:
+
+1. the first path segment matches a type's `dir` (`MTS_SEQ/MTS032` → `MTS_SEQ`)
+2. otherwise `SCREEN_TYPE` in the build's existing `config.json`
+3. otherwise the build name's first three characters
+4. otherwise the first type, and the form says so
+
+Directory before `config.json` is deliberate — see known issue 3 below.
+Whatever it picks is a starting point; the form lets you override it.
+
+Saves are validated before they are written (unknown parameter names, choice
+and boolean values, duplicate ids, `dir` escaping the root). A bad store would
+otherwise make every request fail until someone fixed a file by hand.
+
 ## Configuration
 
-All via environment variables; every one has a working default.
+All via environment variables. The values below are the **defaults in code**;
+what this VM actually needs is in the deploy section, because two of them
+differ.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `JENKINS_URL` | `http://localhost:8080` | On vercingetorix-r8 it is `http://localhost:8889` — Jenkins runs from a bare .war as `espresso`, with no systemd unit |
-| `JENKINS_JOB_PATH` | `job/sushi` | URL path of the job; the real one is `job/run_sushi`. Nested folders: `job/prism/job/sushi` |
-| `JENKINS_USER` / `JENKINS_TOKEN` | unset | Needed if the Jenkins instance requires auth to trigger builds |
-| `PRISMSEQ_ROOT` | `/cmap/obelix/pod/prismSeq` | Used to derive build directories and list existing builds |
-| `SUSHI_UI_DB` | `ui/backend/sushi_ui.db` | Put this somewhere backed up |
-| `CORS_ORIGINS` | `http://localhost:5173` | Only needed for local dev against a remote backend |
+| `JENKINS_URL` | `http://localhost:8080` | this VM runs Jenkins on **8889**, from a bare .war as `espresso` with no systemd unit |
+| `JENKINS_JOB_PATH` | `job/sushi` | this VM's job is **`job/run_sushi`**. Nested folders: `job/prism/job/sushi` |
+| `JENKINS_USER` / `JENKINS_TOKEN` | unset | optional service account, used only when no user session applies |
+| `PRISMSEQ_ROOT` | `/cmap/obelix/pod/prismSeq` | root of the build tree the browser walks |
+| `SUSHI_UI_DB` | `ui/backend/sushi_ui.db` | put this somewhere backed up |
+| `SUSHI_UI_PRESETS` | `ui/backend/presets.local.yml` | screen-type store; back this up too |
+| `SUSHI_UI_SESSION_TTL` | `43200` (12h) | how long a sign-in lasts |
+| `SUSHI_UI_SCAN_TTL` | `600` | build-tree scan cache. Typing an unlisted path still works, so staleness only costs suggestions |
+| `CLUE_API_KEY_FILE` | `/local/jenkins/.clue_api_key` | for cellDB lookups; `CLUE_API_KEY` overrides |
+| `CLUE_API_URL` | `https://api.clue.io/api/` | |
+| `SUSHI_UI_CELLDB_TTL` | `3600` | cellDB lookups are cached this long |
+| `CORS_ORIGINS` | `http://localhost:5173` | only needed for local dev against a remote backend |
+| `SUSHI_ENV` | `local` | `production` or `develop`; anything else banners itself as non-production |
+| `SUSHI_COMMIT` / `SUSHI_BRANCH` | unset | set by the deploy job, since the image carries no `.git` |
+
+The UI reads the clue API key for cellDB lookups. It is used server-side only
+and never appears in a response — but it is a change from the original design,
+in which the UI touched no key at all.
 
 ## Development
 
@@ -85,31 +156,38 @@ All via environment variables; every one has a working default.
 Two Jenkins jobs, one per branch, each running the UI as a detached podman
 container:
 
-| Job | Branch | Environment | Port | Run database |
+| Job | Branch | Environment | Port | State volume |
 | --- | --- | --- | --- | --- |
-| `sushi-ui-main` | `main` | production | 8100 | volume `sushi-ui-db-main` |
-| `sushi-ui-develop` | `develop` | develop | 8101 | volume `sushi-ui-db-develop` |
+| `sushi-ui-main` | `main` | production | 8100 | `sushi-ui-db-main` |
+| `sushi-ui-develop` | `develop` | develop | 8101 | `sushi-ui-db-develop` |
 
 Push to `develop` and it is live within two minutes. Merge to `main` and
 production follows. Nothing to run by hand.
 
 **`develop` is not a sandbox.** There is one pipeline Jenkins job, so a build
 launched from the develop instance is a real pipeline run writing into the real
-build directory. Only the run history is separate. The UI shows an amber banner
-on any non-production instance, and the header always shows the environment and
-deployed commit, so "did my change land?" is answerable from the page.
+build directory. Only the run history and the screen-type store are separate.
+The UI shows an amber banner on any non-production instance, and the header
+shows the environment and deployed commit, so "did my change land?" is
+answerable from the page.
 
 ### Why Jenkins and not systemd
 
 We have no root on that VM, which rules out systemd units, `/etc/cron.d`,
-`/opt` and `/var/log`. Jenkins already runs there as a user with podman and the
-obelix mount, already polls this repo, and already gives us build history and
-console logs — so the deploy is a Jenkins job and needs no privileges we do not
-have.
+`/opt` and `/var/log`. Jenkins already runs there — as `espresso`, from a bare
+`jenkins.war` on port 8889 — with podman and the obelix mount, already polls
+this repo, and already gives us build history and console logs. So the deploy
+is a Jenkins job and needs no privileges we do not have.
+
+It also solves the ownership problem for free. Archiving a stale `config.json`
+writes into the build directory, and those are espresso-owned and mode 755, so
+only espresso can do it. Jenkins runs as espresso and rootless podman maps
+container root to the invoking user, so the container's writes land as espresso
+without anyone needing `sudo -u espresso`.
 
     ui/Dockerfile            multi-stage: node builds the SPA, python serves it
-    ui/.dockerignore          keeps the host .venv and dist/ out of the image
-    ui/deploy/Jenkinsfile     the deploy pipeline, shared by both jobs
+    ui/.dockerignore         keeps the host .venv and dist/ out of the image
+    ui/deploy/Jenkinsfile    the deploy pipeline, shared by both jobs
 
 ### How it works
 
@@ -124,7 +202,7 @@ previous image and fails the build**, so an unattended deploy cannot leave an
 environment dead. Per-commit image tags are the rollback path, which is why
 `post` only prunes dangling images.
 
-Three things about running a server from a Jenkins job:
+Four things about running a server this way:
 
 - **`JENKINS_NODE_COOKIE=dontKillMe` on `podman run`.** Jenkins'
   ProcessTreeKiller reaps the build's descendants when it finishes, which
@@ -133,12 +211,16 @@ Three things about running a server from a Jenkins job:
   container does not come back after a reboot, and nothing else on the box will
   restart it. The periodic run is the safety net; it is cheap because of the
   commit-label check.
-- **`--network=host`.** The UI has to reach Jenkins on `localhost:8080`, and
+- **`--network=host`.** The UI has to reach Jenkins on `localhost:8889`, and
   this also publishes the port without a rootless port mapping.
+- **One uvicorn worker.** Sessions are in memory (see Identity), so the
+  `CMD` deliberately has no `--workers`. A deploy also signs everyone out.
 
-The image carries no `.git`, so the job passes `SUSHI_COMMIT` and
-`SUSHI_BRANCH` in as environment variables; `/api/health` prefers those and
-falls back to `git` when run from a checkout in dev.
+Everything that must survive a deploy is on the container's `/data` volume:
+`SUSHI_UI_DB` and `SUSHI_UI_PRESETS`. Both would otherwise live inside the
+image and silently reset on every deploy. The image carries no `.git`, so the
+job passes `SUSHI_COMMIT` and `SUSHI_BRANCH` in; `/api/health` prefers those
+and falls back to `git` when run from a checkout in dev.
 
 ### First-time setup
 
@@ -148,10 +230,10 @@ Create two pipeline jobs in Jenkins — no shell access needed:
 2. **Pipeline → Definition: Pipeline script from SCM**, SCM `git`, repo
    `git@github.com:theprismlab/sushi.git`, **Branch Specifier** `*/develop`,
    **Script Path** `ui/deploy/Jenkinsfile`.
-3. Save, then **Build Now** once. The triggers in the Jenkinsfile take over
-   after that first run.
+3. Save, then **Build Now** once. The triggers take over after that first run.
 4. Repeat as `sushi-ui-main` with Branch Specifier `*/main`, once `main` has
-   the UI code.
+   the UI code — and read the next section first, because something is already
+   using port 8100.
 
 ### Operating it
 
@@ -161,27 +243,53 @@ Create two pipeline jobs in Jenkins — no shell access needed:
 
 Deploy history and console output are in the Jenkins job. To redeploy without a
 code change, build with `FORCE_REDEPLOY`. To take an environment down,
-`podman rm -f sushi-ui-develop` — but the 15-minute trigger will bring it back,
-so disable the job if you want it to stay down.
+`podman rm -f sushi-ui-develop` — but the 15-minute trigger brings it back, so
+disable the job if you want it to stay down.
 
 To roll production back, revert on `main` and push; the job redeploys within two
-minutes. Run history lives in a named podman volume, so no deploy, rollback or
-`podman rm` touches it.
+minutes. Run history and screen-type defaults live in a named podman volume, so
+no deploy, rollback or `podman rm` touches them.
 
 Ports and volumes are the `ENVIRONMENTS` map at the top of the Jenkinsfile.
 
+### The hand-started instance on :8100
+
+Before the Jenkins jobs existed, the UI was deployed by hand at
+`/local/jenkins/sushi-ui` (group `xchipgrp`, setgid) and started with
+`bin/sushi-ui {start|stop|restart|status|log}`, running as espresso with its
+state at `/local/jenkins/sushi_ui.db` and `/local/jenkins/sushi_ui_presets.yml`
+— outside the checkout, so a reclone could not take them with it. That script
+uses a pidfile rather than `pkill`, because the pattern `uvicorn app:app` also
+matches the shell running the `pkill`.
+
+That instance is still what serves 8100, and it is the fallback if the Jenkins
+jobs are not working. Two consequences:
+
+- **`sushi-ui-main` cannot start until it is stopped**, because
+  `--network=host` cannot bind a port something else holds. The deploy would
+  fail its health check and roll back. `develop` on 8101 is unaffected.
+- **Its state is not the volume's state.** To carry the existing run history
+  and screen-type edits into the container, copy those two files into the
+  `sushi-ui-db-main` volume before the first production deploy.
+
+Node 22 LTS is unpacked at `~/opt/node` on the VM, which is how the SPA used to
+be built in place. Deploys no longer need it — the image's node stage does that
+— but it is still there for working on a checkout directly on the host.
+
 ## Security
 
-**There is no authentication.** Anyone who can reach the port can launch a
-build and archive files in a build directory. This matches the trust model of
-the Jenkins instance it fronts, but it means the port must not be exposed
-beyond the internal network — bind to an internal interface or firewall 8100.
-Identity ("launched by") is self-reported and stored in the browser; it is a
-record-keeping convenience, not an access control.
+Actions are authenticated; reading is not.
 
-The UI never handles `API_KEY`; the pipeline reads it from
-`/local/jenkins/.clue_api_key` as before. Responses strip any parameter whose
-name contains `KEY` or `TOKEN` as a defence against a future catalog change.
+- **Launching and stopping a build require a Jenkins session.** That is
+  enforced server-side, and Jenkins independently requires `Job/Build`.
+- **The SPA is behind a sign-in wall**, but that is a UI gate, not access
+  control. Every read endpoint — run history, parameters, console logs, the
+  build tree — still answers an unauthenticated request. Anyone who can reach
+  the port can read all of it with `curl`.
+
+So the port must not be exposed beyond the internal network. It currently binds
+`0.0.0.0:8100`; bind an internal interface or firewall the port. Locking the
+read endpoints behind a session too is a small change if that is wanted.
 
 ## Known issues in the pipeline this UI surfaced
 
@@ -194,10 +302,10 @@ These are pre-existing and deliberately **not** changed here:
 2. `config.json` in every build directory contains the plaintext clue API key,
    on a shared mount.
 3. `APS007/config.json` has `SCREEN_TYPE=MTS_SEQ` and `AIR002/config.json` has
-   `SCREEN_TYPE=APS_SEQ` — neither matches its directory. `presets.yml` assumes
-   the APS one was a mistake and uses `APS_SEQ`; see the notes in that file.
+   `SCREEN_TYPE=APS_SEQ` — neither matches its directory. This is why screen
+   type is inferred from the directory before the config file.
 4. There is no `AIR_SEQ` value in the `SCREEN_TYPE` choice list, so the AIR
-   preset sends `APS_SEQ` as AIR002 did. Add the choice to the groovy and to
+   type sends `APS_SEQ` as AIR002 did. Add the choice to the groovy and to
    `params.yml` to make it first class.
 5. `LOW_ABUNDANCE_THRESHOLD` and `READ_DETECTION_LIMIT` are derived from
    `config.COUNT_THRESHOLD ?: params.COUNT_THRESHOLD`, so on a re-run against

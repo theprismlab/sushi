@@ -1,9 +1,15 @@
-# Per-screen-type defaults.
+# Per-screen-type defaults -- the SEED for the editable store.
 #
-# Derived by diffing config.json + qc_params.json across the reference builds
-# named below. Only values that actually differ from params.yml defaults are
-# listed -- everything else falls through to the catalog default, so this file
-# stays short and the diff against "stock" is obvious.
+# This file is only read until someone saves on the Screen types page, which
+# writes SUSHI_UI_PRESETS (presets.local.yml by default) and takes over from
+# then on. Edit that through the UI, not this file; "Revert to shipped
+# defaults" deletes the store and comes back here.
+#
+# The values below were derived by diffing config.json + qc_params.json across
+# the reference builds named for each type. `reference` is a provenance note
+# only -- nothing reads those builds at runtime. Only values that actually
+# differ from params.yml defaults are listed; everything else falls through to
+# the catalog default, so the diff against "stock" stays obvious.
 #
 # `dir` is the directory under PRISMSEQ_ROOT that builds of this type live in.
 # It is deliberately separate from the SCREEN_TYPE parameter: two of the five

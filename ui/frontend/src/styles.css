@@ -35,6 +35,7 @@ p { margin: 4px 0; }
 .small { font-size: 12px; }
 .help { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
 .wrap { overflow-wrap: anywhere; }
+.warn-text { color: var(--warn); }
 
 /* ---------------------------------------------------------------- layout */
 
@@ -53,7 +54,12 @@ p { margin: 4px 0; }
 .topbar nav a:hover { background: var(--card-2); color: var(--text); }
 .topbar nav a.active { background: var(--card-2); color: var(--text); }
 .who { display: flex; align-items: center; gap: 8px; }
-.who input { width: 150px; }
+.who strong { font-size: 13px; }
+
+.wall { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+.wall-card { width: 100%; max-width: 380px; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.wall-card .brand { font-size: 18px; }
+.wall-card .field input { width: 100%; }
 
 .page { max-width: 1080px; margin: 0 auto; padding: 20px; }
 
@@ -99,6 +105,76 @@ button.disclosure {
 }
 
 .checkbox { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
+
+/* ------------------------------------------------------- directory browser */
+
+.browser { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-top: 12px; }
+
+.crumbs {
+  display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+  padding: 6px 8px; background: var(--card-2); border-bottom: 1px solid var(--line);
+}
+.crumb {
+  background: none; border: none; padding: 3px 6px; border-radius: 4px;
+  color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+}
+.crumb:hover { background: rgba(110, 168, 254, 0.12); }
+.crumb-sep { color: var(--muted); }
+.picker-filter {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px; border-bottom: 1px solid var(--line);
+}
+.picker-filter input { font-size: 12.5px; padding: 5px 8px; }
+.picker-filter .small { white-space: nowrap; flex-shrink: 0; }
+
+.entries { max-height: 320px; overflow-y: auto; }
+.entry-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); }
+.entry-row:last-child { border-bottom: none; }
+.entry-row.selected { background: rgba(110, 168, 254, 0.14); }
+.entry-row.selected .entry-name { color: var(--accent); font-weight: 600; }
+/* Keyboard highlight, distinct from the current selection. */
+.entry-row.active { background: var(--card-2); box-shadow: inset 2px 0 0 var(--accent); }
+
+.entry {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  background: none; border: none; border-radius: 0; padding: 7px 10px;
+  text-align: left; font-size: 13px;
+}
+.entry:hover:not(:disabled) { background: var(--card-2); border-color: transparent; }
+.entry.up { width: 100%; border-bottom: 1px solid var(--line); color: var(--muted); }
+.entry-icon { color: var(--muted); width: 12px; flex-shrink: 0; }
+.entry-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.entry-date { margin-left: auto; font-size: 11px; flex-shrink: 0; }
+.entry-open {
+  border: none; border-left: 1px solid var(--line); border-radius: 0;
+  background: none; color: var(--muted); font-size: 11px; padding: 0 12px;
+}
+.entry-open:hover { background: var(--card-2); color: var(--accent); border-color: var(--line); }
+.entry-msg { padding: 10px; }
+
+/* The prismSeq root is fixed, so it is shown as a non-editable adornment and
+   only the part after it is typed. */
+.path-input {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--card-2); overflow: hidden;
+}
+.path-input:focus-within { border-color: var(--accent); outline: 1px solid var(--accent); }
+.path-input .path-prefix {
+  display: flex; align-items: center; flex-shrink: 0;
+  padding: 6px 4px 6px 8px; border-right: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22); color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  white-space: nowrap; user-select: none;
+}
+.path-input input {
+  flex: 1; min-width: 0; border: none; border-radius: 0; background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+}
+.path-input input:focus { outline: none; }
 
 /* ------------------------------------------------------------------ forms */
 
@@ -160,10 +236,26 @@ table.runs td { font-size: 13px; }
 table.runs tbody tr:hover { background: var(--card-2); }
 table.runs a { text-decoration: none; }
 
-table.mini th, table.mini td { padding: 5px 8px; font-size: 12px; }
-table.mini { margin-top: 8px; }
+/* Parameter values are long unbroken strings -- comma-joined column lists and
+   absolute paths. Without a fixed layout the table sizes itself to its widest
+   cell and runs off the right of the page, so pin the columns and wrap inside
+   them. .table-scroll is the fallback for very narrow viewports. */
+table.mini { margin-top: 8px; table-layout: fixed; }
+table.mini th, table.mini td {
+  padding: 5px 8px; font-size: 12px;
+  overflow-wrap: anywhere; word-break: break-word;
+}
 table.mini tr.absent td { color: var(--muted); }
 table.mini tr.changed code { color: var(--warn); }
+
+.table-scroll { overflow-x: auto; max-width: 100%; }
+
+/* File | Parameter | On disk | Your value -- the two value columns need room. */
+table.mini.conflicts th:nth-child(1), table.mini.conflicts td:nth-child(1) { width: 15%; }
+table.mini.conflicts th:nth-child(2), table.mini.conflicts td:nth-child(2) { width: 23%; }
+
+/* Parameter | Value | Default */
+table.mini.full th:nth-child(1), table.mini.full td:nth-child(1) { width: 28%; }
 
 .pill {
   display: inline-block; font-size: 11px; padding: 2px 9px; border-radius: 10px;

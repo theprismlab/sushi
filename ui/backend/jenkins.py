@@ -24,49 +24,76 @@ class JenkinsError(RuntimeError):
 
 
 _session = requests.Session()
-_crumb: dict | None = None
 
 
 def _url(*parts: str) -> str:
     return "/".join([BASE, JOB_PATH, *[p.strip("/") for p in parts if p]])
 
 
-def _crumb_headers() -> dict:
-    """Jenkins requires a CSRF crumb for POST unless protection is disabled."""
-    global _crumb
-    if _crumb is None:
-        try:
-            r = _session.get(f"{BASE}/crumbIssuer/api/json", auth=AUTH, timeout=TIMEOUT)
-            _crumb = {r.json()["crumbRequestField"]: r.json()["crumb"]} if r.ok else {}
-        except requests.RequestException:
-            _crumb = {}
-    return dict(_crumb)
+def _posting_session(auth: tuple[str, str] | None) -> requests.Session:
+    """A fresh session carrying a CSRF crumb issued for these credentials.
+
+    Jenkins ties the crumb to the authenticated identity and to the session
+    cookie handed out with it, so a crumb fetched anonymously (or as another
+    user) will not validate the POST. Both must come from the same session as
+    the request that uses them, which is why this is not cached.
+    """
+    s = requests.Session()
+    try:
+        r = s.get(f"{BASE}/crumbIssuer/api/json", auth=auth, timeout=TIMEOUT)
+        if r.ok:
+            body = r.json()
+            s.headers[body["crumbRequestField"]] = body["crumb"]
+    except (requests.RequestException, ValueError, KeyError):
+        pass  # crumb protection may be off; let the POST itself report failure
+    return s
+
+
+# The parameter-separator plugin declares section headings as parameter
+# definitions. They hold no value and can never cause a rejected build, so
+# counting them as drift is a permanent false warning.
+SEPARATOR_MARKER = "ParameterSeparator"
+
+
+def real_parameters(properties: list[dict]) -> list[str]:
+    """Names of parameters that actually take a value, separators excluded."""
+    names = []
+    for prop in properties or []:
+        for definition in prop.get("parameterDefinitions") or []:
+            kind = f"{definition.get('_class', '')} {definition.get('type', '')}"
+            if SEPARATOR_MARKER in kind:
+                continue
+            names.append(definition["name"])
+    return names
 
 
 def declared_params() -> list[str]:
     """Parameter names the job declares. Used to catch drift between the
     pipeline's parameters{} block and params.yml."""
     r = _session.get(_url("api/json"), auth=AUTH, timeout=TIMEOUT,
-                     params={"tree": "property[parameterDefinitions[name]]"})
+                     params={"tree": "property[parameterDefinitions[name,type]]"})
     if not r.ok:
         raise JenkinsError(f"GET job: {r.status_code} {r.text[:200]}")
-    names = []
-    for prop in r.json().get("property", []):
-        for definition in prop.get("parameterDefinitions", []) or []:
-            names.append(definition["name"])
-    return names
+    return real_parameters(r.json().get("property", []))
 
 
-def trigger(params: dict) -> str:
-    """Queue a build. Returns the queue item URL.
+def trigger(params: dict, auth: tuple[str, str] | None = None) -> str:
+    """Queue a build as `auth`. Returns the queue item URL.
 
     Jenkins does not hand back a build number here -- the build has not been
     assigned an executor yet -- so the queue URL is what we persist and resolve
     later via queue_build_number().
     """
+    auth = auth or AUTH
     form = {k: ("true" if v else "false") if isinstance(v, bool) else str(v) for k, v in params.items()}
-    r = _session.post(_url("buildWithParameters"), data=form, auth=AUTH,
-                      headers=_crumb_headers(), timeout=TIMEOUT, allow_redirects=False)
+    session = _posting_session(auth)
+    r = session.post(_url("buildWithParameters"), data=form, auth=auth,
+                     timeout=TIMEOUT, allow_redirects=False)
+    if r.status_code in (401, 403):
+        raise JenkinsError(
+            f"Jenkins refused the trigger ({r.status_code}). The account needs Build permission "
+            f"on {JOB_PATH}."
+        )
     if r.status_code not in (200, 201, 302, 303):
         raise JenkinsError(f"trigger failed: {r.status_code} {r.text[:500]}")
     queue_url = r.headers.get("Location")
@@ -104,8 +131,12 @@ def build(number: int) -> dict:
     return r.json()
 
 
-def stop(number: int) -> None:
-    r = _session.post(_url(str(number), "stop"), auth=AUTH, headers=_crumb_headers(), timeout=TIMEOUT)
+def stop(number: int, auth: tuple[str, str] | None = None) -> None:
+    auth = auth or AUTH
+    r = _posting_session(auth).post(_url(str(number), "stop"), auth=auth, timeout=TIMEOUT)
+    if r.status_code in (401, 403):
+        raise JenkinsError(f"Jenkins refused the stop ({r.status_code}); the account needs "
+                           f"Cancel permission on {JOB_PATH}.")
     if not r.ok and r.status_code not in (302, 303):
         raise JenkinsError(f"stop failed: {r.status_code} {r.text[:200]}")
 

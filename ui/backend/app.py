@@ -4,6 +4,7 @@ Jenkins remains the executor. This service is a launcher, a status mirror and
 the durable run log.
 """
 
+import getpass
 import json
 import os
 import shutil
@@ -12,26 +13,30 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Cookie, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 import catalog
+import celldb
 import db
 import jenkins
+import session
 
 app = FastAPI(title="sushi pipeline UI")
 
-# No auth by design: this binds to the internal network only, same trust model
-# as the Jenkins instance it fronts. Do not expose it publicly -- anyone who
-# can reach it can launch a build and write into the build directory.
+# Reads are open; anything that acts (launch, stop) requires Jenkins
+# credentials, which are also what Jenkins itself demands to queue a build.
+# Still not a public service: anyone who can reach the port can read every run
+# record and browse the build tree.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_credentials=True,  # the session cookie must survive the dev-server origin
 )
 
 db.init()
@@ -52,7 +57,13 @@ def get_catalog():
         "groups": data["groups"],
         "params": data["params"],
         "presets": [
-            {"id": p["id"], "label": p["label"], "dir": p["dir"], "reference": p.get("reference")}
+            {
+                "id": p["id"], "label": p["label"], "dir": p["dir"],
+                # Provenance note, not the source of the defaults -- those come
+                # from the screen-types store.
+                "reference": p.get("reference"),
+                "override_count": len(p.get("params") or {}),
+            }
             for p in data["presets"]
         ],
         "module_params": catalog.module_names(),
@@ -60,43 +71,116 @@ def get_catalog():
     }
 
 
-@app.get("/api/presets/{preset_id}/defaults")
-def preset_defaults(preset_id: str, build_name: str = ""):
-    try:
-        values = catalog.defaults_for(preset_id, build_name.strip())
-    except KeyError:
-        raise HTTPException(404, f"unknown screen type {preset_id!r}")
+@app.get("/api/screen-types")
+def get_screen_types():
+    """The editable screen-type defaults, and where they are being read from."""
     return {
-        "values": values,
-        # So the form can badge which fields the preset moved off the stock default.
-        "from_preset": sorted(catalog.preset(preset_id)["params"]),
+        "presets": catalog.catalog()["presets"],
+        "source": catalog.presets_source(),
+        "store": str(catalog.PRESETS_STORE),
+        "shipped": str(catalog.SHIPPED_PRESETS),
     }
 
 
-@app.get("/api/builds")
-def list_build_dirs(preset: str):
-    """Existing build directories for a screen type, so the user picks instead of types."""
+class ScreenTypes(BaseModel):
+    presets: list[dict]
+
+
+@app.put("/api/screen-types")
+def put_screen_types(body: ScreenTypes, sushi_sid: str | None = Cookie(default=None)):
+    _require_identity(sushi_sid)
     try:
-        parent = Path(catalog.build_dir_for(preset, ""))
+        catalog.save_presets(body.presets)
+    except ValueError as exc:
+        raise HTTPException(422, {"problems": str(exc).split("; ")})
+    return get_screen_types()
+
+
+@app.post("/api/screen-types/reset")
+def reset_screen_types(sushi_sid: str | None = Cookie(default=None)):
+    """Discard local edits and go back to the presets.yml shipped in git."""
+    _require_identity(sushi_sid)
+    catalog.reset_presets()
+    return get_screen_types()
+
+
+@app.get("/api/suggestions")
+def get_suggestions():
+    """Real values from cellDB for the params that have a closed-ish set.
+
+    Suggestions only: CONTROL_BARCODE_META also accepts a CSV filename in the
+    build directory, so the field stays free text.
+    """
+    return celldb.suggestions()
+
+
+# --------------------------------------------------------------- identity
+
+
+class Credentials(BaseModel):
+    user: str
+    token: str
+
+
+@app.post("/api/session")
+def sign_in(body: Credentials, response: Response):
+    """Exchange Jenkins credentials for a session cookie."""
+    try:
+        sid, identity = session.create(body.user, body.token)
+    except session.AuthError as exc:
+        raise HTTPException(401, str(exc))
+    response.set_cookie(session.COOKIE, sid, httponly=True, samesite="lax",
+                        max_age=int(session.TTL), path="/")
+    return identity
+
+
+@app.get("/api/session")
+def current_session(sushi_sid: str | None = Cookie(default=None)):
+    return {"identity": session.identity(sushi_sid)}
+
+
+@app.delete("/api/session")
+def sign_out(response: Response, sushi_sid: str | None = Cookie(default=None)):
+    session.destroy(sushi_sid)
+    response.delete_cookie(session.COOKIE, path="/")
+    return {"identity": None}
+
+
+def _require_identity(sid: str | None) -> dict:
+    entry = session.get(sid)
+    if not entry:
+        raise HTTPException(401, "Sign in with your Jenkins credentials first.")
+    return entry
+
+
+@app.get("/api/ls")
+def browse(path: str = ""):
+    """One level of the build tree, for the directory browser in step 1."""
+    try:
+        return catalog.list_dir(path)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.get("/api/build-paths")
+def list_build_paths(refresh: bool = False):
+    """Every build directory under PRISMSEQ_ROOT, as paths relative to it.
+
+    The launch form asks for the build directory first and derives the screen
+    type from it, so the choice cannot be scoped to one screen type up front.
+    """
+    return {"root": catalog.PRISMSEQ_ROOT, "paths": catalog.build_paths(refresh=refresh)}
+
+
+@app.get("/api/path-defaults")
+def path_defaults(path: str = "", preset: str = ""):
+    """Resolve a build path to a screen type and a full set of form values."""
+    try:
+        return catalog.defaults_for_path(path, preset)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     except KeyError:
         raise HTTPException(404, f"unknown screen type {preset!r}")
-    if not parent.is_dir():
-        return {"root": str(parent), "exists": False, "builds": []}
-
-    builds = []
-    for entry in parent.iterdir():
-        if not entry.is_dir() or entry.name.startswith("."):
-            continue
-        builds.append({
-            "name": entry.name,
-            "has_raw_counts": (entry / "raw_counts_uncollapsed.csv.gz").exists(),
-            "has_config": (entry / "config.json").exists(),
-            "modified": _iso(entry.stat().st_mtime),
-        })
-    # Most recently touched first: the build someone is working on now is the
-    # one they are most likely about to launch.
-    builds.sort(key=lambda b: b["modified"], reverse=True)
-    return {"root": str(parent), "exists": True, "builds": builds}
 
 
 # -------------------------------------------------------------- preflight
@@ -104,9 +188,10 @@ def list_build_dirs(preset: str):
 
 class LaunchRequest(BaseModel):
     preset: str
-    launched_by: str = Field(min_length=1)
     values: dict
     archive_existing_config: bool = False
+    # No launched_by: identity comes from the Jenkins session, not the client,
+    # so the run log records who Jenkins says it was.
 
 
 @app.post("/api/preflight")
@@ -136,12 +221,39 @@ def preflight(req: LaunchRequest):
                 problems.append(
                     f"{sample_meta.name} is missing and 'Pull sample metadata from COMET' is off."
                 )
+        # Whether we *could* archive matters before the button is pressed:
+        # a problem if archiving was asked for, a warning if it is merely on
+        # offer, so nobody ticks the box and then hits a failed launch.
+        blockers = _archive_blockers(build_dir)
+        if blockers:
+            (problems if req.archive_existing_config else warnings).extend(blockers)
 
     return {
         "problems": problems,
         "warnings": warnings,
         "stale_config": _stale_config(build_dir, values) if build_dir.is_dir() else None,
     }
+
+
+ARCHIVED_FILES = ("config.json", "qc_params.json")
+
+
+def _archive_blockers(build_dir: Path) -> list[str]:
+    """Why archiving the existing config here would fail, checked up front.
+
+    This service does not run as the account that owns most build directories,
+    and plenty of them are mode 755, so an unwritable build directory is a
+    routine outcome rather than an exceptional one -- it must not surface as a
+    500 from shutil half way through the launch.
+    """
+    present = [name for name in ARCHIVED_FILES if (build_dir / name).exists()]
+    if not present or os.access(build_dir, os.W_OK):
+        return []
+    return [
+        f"Cannot archive {' or '.join(present)}: {build_dir} is not writable by "
+        f"{getpass.getuser()}, the account running this service. Either make the directory "
+        f"group-writable (chmod g+w) or move the file aside by hand."
+    ]
 
 
 def _stale_config(build_dir: Path, values: dict) -> dict | None:
@@ -187,7 +299,8 @@ def _stale_config(build_dir: Path, values: dict) -> dict | None:
 
 
 @app.post("/api/runs")
-def launch(req: LaunchRequest):
+def launch(req: LaunchRequest, sushi_sid: str | None = Cookie(default=None)):
+    who = _require_identity(sushi_sid)
     check = preflight(req)
     if check["problems"]:
         raise HTTPException(422, {"problems": check["problems"]})
@@ -197,28 +310,32 @@ def launch(req: LaunchRequest):
 
     archived = []
     if req.archive_existing_config:
+        blockers = _archive_blockers(build_dir)
+        if blockers:
+            raise HTTPException(409, {"problems": blockers})
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        for filename in ("config.json", "qc_params.json"):
-            path = build_dir / filename
-            if path.exists():
-                backup = path.with_name(f"{filename}.{stamp}.bak")
-                try:
+        try:
+            # Copy everything first, unlink only once every copy succeeded: a
+            # failure part way through must not leave the build directory with
+            # config.json deleted and no backup of it.
+            copies = []
+            for filename in ARCHIVED_FILES:
+                path = build_dir / filename
+                if path.exists():
+                    backup = path.with_name(f"{filename}.{stamp}.bak")
                     shutil.copy2(path, backup)
-                    path.unlink()
-                except OSError as exc:
-                    # Nothing has been queued yet, so refusing outright is safe;
-                    # launching anyway would silently ignore the form.
-                    raise HTTPException(
-                        403,
-                        f"Cannot archive {filename} in {build_dir}: {exc}. "
-                        "The service needs write access to the build directory, "
-                        "or move the file aside by hand.",
-                    ) from exc
+                    copies.append((path, backup))
+            for path, backup in copies:
+                path.unlink()
                 archived.append(backup.name)
+        except OSError as exc:
+            raise HTTPException(409, {"problems": [
+                f"Could not archive the existing config in {build_dir}: {exc}"
+            ]})
 
     modules = {name: values.get(name) for name in catalog.module_names()}
     run_id = db.create(
-        launched_by=req.launched_by.strip(),
+        launched_by=who["full_name"],
         preset=req.preset,
         build_name=str(values["BUILD_NAME"]),
         screen=str(values.get("SCREEN", "")),
@@ -230,7 +347,7 @@ def launch(req: LaunchRequest):
     )
 
     try:
-        queue_url = jenkins.trigger(values)
+        queue_url = jenkins.trigger(values, auth=(who["user"], who["token"]))
     except jenkins.JenkinsError as exc:
         db.update(run_id, status="ERROR", error=str(exc), finished_at=db.now())
         raise HTTPException(502, f"Jenkins refused the build: {exc}")
@@ -273,14 +390,15 @@ def set_notes(run_id: int, body: Notes):
 
 
 @app.post("/api/runs/{run_id}/stop")
-def stop_run(run_id: int):
+def stop_run(run_id: int, sushi_sid: str | None = Cookie(default=None)):
+    who = _require_identity(sushi_sid)
     run = db.get(run_id)
     if not run:
         raise HTTPException(404, f"no run {run_id}")
     if not run["build_number"]:
         raise HTTPException(409, "build has no number yet; it is still queued")
     try:
-        jenkins.stop(run["build_number"])
+        jenkins.stop(run["build_number"], auth=(who["user"], who["token"]))
     except jenkins.JenkinsError as exc:
         raise HTTPException(502, str(exc))
     return _public(_refresh(run_id) or db.get(run_id))
@@ -381,7 +499,7 @@ def health():
     """Also surfaces drift between params.yml and the pipeline's parameters block."""
     result = {"environment": SUSHI_ENV, "version": _deployed_version(),
               "jenkins_url": jenkins.BASE, "job_path": jenkins.JOB_PATH,
-              "authenticated": jenkins.AUTH is not None, "db": str(db.DB_PATH)}
+              "service_account": jenkins.AUTH is not None, "db": str(db.DB_PATH)}
     try:
         declared = set(jenkins.declared_params())
         ours = {p["name"] for p in catalog.catalog()["params"]}
@@ -457,6 +575,11 @@ if _dist.is_dir():
 
     @app.get("/{path:path}")
     def spa(path: str):
+        # An unknown /api path must not come back as index.html: the client
+        # would try to parse HTML as JSON and a typo'd route would look like a
+        # 200 with a nonsense body instead of a 404.
+        if path.startswith("api/"):
+            raise HTTPException(404, f"no such endpoint: /{path}")
         candidate = _dist / path
         if path and candidate.is_file():
             return FileResponse(candidate)
