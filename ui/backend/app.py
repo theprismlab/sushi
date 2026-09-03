@@ -4,6 +4,7 @@ Jenkins remains the executor. This service is a launcher, a status mirror and
 the durable run log.
 """
 
+import csv
 import getpass
 import json
 import os
@@ -13,6 +14,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
+import requests
 from fastapi import Cookie, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -24,6 +26,7 @@ import celldb
 import db
 import github
 import jenkins
+import screen_meta
 import session
 
 app = FastAPI(title="sushi pipeline UI")
@@ -115,6 +118,59 @@ def git_refs(branch: str = ""):
     block a launch.
     """
     return github.refs(branch.strip())
+
+
+CB_LADDER_COL = "cb_ladder"
+
+
+@app.get("/api/control-barcodes")
+def screen_control_barcodes(screen: str = "", build_dir: str = "",
+                            create_sample_meta: bool = False):
+    """The control-barcode ladder for a screen, for autofilling the form.
+
+    A screen has exactly one ladder, so a single value can be filled in and
+    more than one is an anomaly worth showing rather than choosing between.
+
+    Which source is authoritative depends on what the run will do. If COMET is
+    about to regenerate sample_meta.csv then the view is what the build will
+    see; otherwise the file already on disk is, and it may legitimately differ
+    (APS007's csv says Ha_mod where the view says ha_mod).
+    """
+    result = {"value": None, "values": [], "source": None, "error": None}
+    sample_meta = Path(build_dir.rstrip("/")) / "sample_meta.csv" if build_dir else None
+
+    if not create_sample_meta and sample_meta and sample_meta.exists():
+        result["source"] = "sample_meta.csv"
+        try:
+            with sample_meta.open(newline="") as handle:
+                reader = csv.DictReader(handle)
+                if CB_LADDER_COL not in (reader.fieldnames or []):
+                    result["error"] = f"no {CB_LADDER_COL} column in sample_meta.csv"
+                else:
+                    result["values"] = sorted(
+                        {(row.get(CB_LADDER_COL) or "").strip()
+                         for row in reader if (row.get(CB_LADDER_COL) or "").strip()}
+                    )
+        except OSError as exc:
+            result["error"] = f"could not read sample_meta.csv: {exc}"
+    elif screen:
+        result["source"] = "v_seq_metadata"
+        try:
+            result["values"] = screen_meta.control_barcodes(screen)
+        except (requests.RequestException, LookupError, ValueError) as exc:
+            result["error"] = str(exc)
+    else:
+        result["error"] = "need a screen or a build directory"
+
+    # Only autofill when the invariant holds; two values means someone should look.
+    if len(result["values"]) == 1:
+        result["value"] = result["values"][0]
+    elif len(result["values"]) > 1:
+        result["error"] = (
+            f"{len(result['values'])} different control barcode ladders for this screen "
+            f"({', '.join(result['values'])}). A screen should have exactly one."
+        )
+    return result
 
 
 @app.get("/api/suggestions")

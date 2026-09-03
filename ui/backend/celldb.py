@@ -25,7 +25,7 @@ TTL = float(os.environ.get("SUSHI_UI_CELLDB_TTL", "3600"))
 _cache: dict[str, tuple[float, list[str], str]] = {}
 
 
-def _api_key() -> str:
+def api_key() -> str:
     key = os.environ.get("CLUE_API_KEY", "")
     if key:
         return key.strip()
@@ -39,7 +39,7 @@ def _fetch_distinct(resource: str, field: str) -> list[str]:
     r = requests.get(
         f"{API_URL}/{resource}",
         params={"filter": '{"fields":["%s"],"limit":5000}' % field},
-        headers={"user_key": _api_key()},
+        headers={"user_key": api_key()},
         timeout=TIMEOUT,
     )
     if not r.ok:

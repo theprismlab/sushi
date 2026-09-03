@@ -50,6 +50,8 @@ export default function Launch() {
   const [archive, setArchive] = useState(false)
   const [launching, setLaunching] = useState(false)
   const [launchError, setLaunchError] = useState(null)
+  // The screen's control barcode ladder, read from sample_meta.
+  const [cbLadder, setCbLadder] = useState(null)
 
   const stock = useMemo(
     () => Object.fromEntries(catalog.params.map((p) => [p.name, p.default])),
@@ -107,6 +109,12 @@ export default function Launch() {
     setPresetOverride(id)
   }
 
+  // Autofilled values must not be marked as touched: `touched` is what stops us
+  // overwriting a human's edit, and it drives the "edited" badge.
+  const setDerived = useCallback((name, value) => {
+    setValues((v) => (v && String(v[name]) !== String(value) ? { ...v, [name]: value } : v))
+  }, [])
+
   const setValue = useCallback((name, value) => {
     setTouched((t) => new Set(t).add(name))
     setValues((v) => {
@@ -151,6 +159,32 @@ export default function Launch() {
     }, 400)
     return () => clearTimeout(timer)
   }, [request])
+
+  // A screen has exactly one control barcode ladder, so it can be looked up
+  // instead of remembered. Which source is authoritative depends on what the
+  // run will do: if COMET is about to rewrite sample_meta.csv then the seq
+  // metadata view is what the build will see, otherwise the file on disk is.
+  const screen = values?.SCREEN || ''
+  const cbBuildDir = values?.BUILD_DIR || ''
+  const cbFromComet = !!values?.CREATE_SAMPLE_META
+  useEffect(() => {
+    if (!selected || (!screen && !cbBuildDir)) {
+      setCbLadder(null)
+      return
+    }
+    let cancelled = false
+    api.controlBarcodes({ screen, buildDir: cbBuildDir, createSampleMeta: cbFromComet })
+      .then((r) => { if (!cancelled) setCbLadder(r) })
+      .catch(() => { if (!cancelled) setCbLadder(null) })
+    return () => { cancelled = true }
+  }, [selected, screen, cbBuildDir, cbFromComet])
+
+  useEffect(() => {
+    // Only when the invariant holds, and never over a manual edit.
+    if (cbLadder?.value && !touched.has('CONTROL_BARCODE_META')) {
+      setDerived('CONTROL_BARCODE_META', cbLadder.value)
+    }
+  }, [cbLadder, touched, setDerived])
 
   async function launch() {
     setLaunching(true)
@@ -297,7 +331,12 @@ export default function Launch() {
             <div className="grid" key={g.id}>
               {g.params.map((p) => (
                 <Field key={p.name} spec={p} value={values[p.name]} stock={stock[p.name]}
-                       fromPreset={fromPreset.includes(p.name)} onChange={setValue} />
+                       fromPreset={fromPreset.includes(p.name)} onChange={setValue}
+                       tag={p.name === 'CONTROL_BARCODE_META' && cbLadder?.value
+                            && values[p.name] === cbLadder.value && !touched.has(p.name)
+                            ? `from ${cbLadder.source}` : undefined}
+                       extraHelp={p.name === 'CONTROL_BARCODE_META'
+                         ? <CbLadderNote info={cbLadder} value={values[p.name]} /> : undefined} />
               ))}
             </div>
           ))}
@@ -707,7 +746,7 @@ function PipelineVersion({ values, stock, fromPreset, onChange }) {
   )
 }
 
-function Field({ spec, value, stock, fromPreset, onChange }) {
+function Field({ spec, value, stock, fromPreset, onChange, tag, extraHelp }) {
   const id = `f-${spec.name}`
   const mark = changedClass(value, stock, fromPreset)
   const suggest = useContext(SuggestContext)?.[spec.name]
@@ -717,8 +756,9 @@ function Field({ spec, value, stock, fromPreset, onChange }) {
       <label htmlFor={id}>
         {spec.label || spec.name}
         {spec.required && <span className="req">required</span>}
-        {mark === 'preset-set' && <span className="tag">screen default</span>}
-        {mark === 'user-set' && <span className="tag alt">edited</span>}
+        {tag ? <span className="tag">{tag}</span> : mark === 'preset-set'
+          ? <span className="tag">screen default</span>
+          : mark === 'user-set' ? <span className="tag alt">edited</span> : null}
       </label>
       {spec.type === 'choice' ? (
         <select id={id} value={value} onChange={(e) => onChange(spec.name, e.target.value)}>
@@ -756,8 +796,27 @@ function Field({ spec, value, stock, fromPreset, onChange }) {
         </p>
       )}
       {suggest?.error && <p className="help warn-text">{suggest.error}</p>}
+      {extraHelp}
     </div>
   )
+}
+
+/** What sample_meta says the ladder is, and whether the form agrees. */
+function CbLadderNote({ info, value }) {
+  if (!info) return null
+  if (info.error) return <p className="help warn-text">{info.error}</p>
+  if (!info.value) return null
+  const where = info.source === 'sample_meta.csv'
+    ? 'sample_meta.csv in the build directory'
+    : 'the seq metadata view, which will generate sample_meta.csv'
+  if (String(value) !== String(info.value)) {
+    return (
+      <p className="help warn-text">
+        {where} says <code>{info.value}</code>, which is not what this field is set to.
+      </p>
+    )
+  }
+  return <p className="help">Matches {where}.</p>
 }
 
 function Toggle({ spec, value, stock, fromPreset, onChange }) {

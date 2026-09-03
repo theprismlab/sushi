@@ -23,6 +23,10 @@ export const api = {
   ls: (path) => request(`/ls?path=${encodeURIComponent(path || '')}`),
   suggestions: () => request('/suggestions'),
   gitRefs: (branch) => request(`/git/refs?branch=${encodeURIComponent(branch || '')}`),
+  controlBarcodes: ({ screen, buildDir, createSampleMeta }) =>
+    request(`/control-barcodes?screen=${encodeURIComponent(screen || '')}`
+      + `&build_dir=${encodeURIComponent(buildDir || '')}`
+      + `&create_sample_meta=${createSampleMeta ? 'true' : 'false'}`),
   screenTypes: () => request('/screen-types'),
   saveScreenTypes: (presets) =>
     request('/screen-types', { method: 'PUT', body: JSON.stringify({ presets }) }),
