@@ -37,6 +37,11 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           sushi <span className="muted">PRISM pipeline</span>
+          {health && (
+            <span className="muted small" title={`branch ${health.version.branch}`}>
+              {health.environment} · {health.version.commit}
+            </span>
+          )}
         </div>
         <nav>
           <NavLink to="/launch">Launch</NavLink>
@@ -53,6 +58,13 @@ export default function App() {
         </label>
       </header>
 
+      {health && health.environment !== 'production' && (
+        <div className="banner warn">
+          <strong>{health.environment} instance — not a sandbox</strong>
+          There is only one Jenkins job, so anything you launch here is a real pipeline
+          run that writes into the real build directory. Only the run history is separate.
+        </div>
+      )}
       {health && !health.jenkins_reachable && (
         <div className="banner error">
           Jenkins at {health.jenkins_url} is unreachable ({health.jenkins_error}). You can browse

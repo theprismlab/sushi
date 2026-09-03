@@ -44,7 +44,7 @@ p { margin: 4px 0; }
   background: var(--card); border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 10;
 }
-.brand { font-weight: 600; letter-spacing: 0.3px; }
+.brand { font-weight: 600; letter-spacing: 0.3px; display: flex; align-items: baseline; gap: 8px; }
 .topbar nav { display: flex; gap: 4px; flex: 1; }
 .topbar nav a {
   padding: 6px 12px; border-radius: var(--radius);
