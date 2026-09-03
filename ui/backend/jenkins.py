@@ -10,6 +10,11 @@ import os
 import requests
 
 BASE = os.environ.get("JENKINS_URL", "http://localhost:8080").rstrip("/")
+# BASE is where *this process* reaches Jenkins, which on the deployment host is
+# localhost. Links in the UI are followed by a browser on someone else's
+# machine, where localhost is their own laptop -- so they need a routable host.
+# Defaults to BASE, which is correct whenever the two are the same.
+PUBLIC_BASE = os.environ.get("JENKINS_PUBLIC_URL", BASE).rstrip("/")
 # URL path of the job, so nested folders work: e.g. "job/prism/job/sushi".
 JOB_PATH = os.environ.get("JENKINS_JOB_PATH", "job/sushi").strip("/")
 TIMEOUT = float(os.environ.get("JENKINS_TIMEOUT", "30"))
@@ -156,4 +161,5 @@ def console(number: int, start: int = 0) -> dict:
 
 
 def build_url(number: int) -> str:
-    return _url(str(number)) + "/"
+    """Link for a browser to follow, so PUBLIC_BASE rather than BASE."""
+    return "/".join([PUBLIC_BASE, JOB_PATH, str(number)]) + "/"

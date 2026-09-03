@@ -505,6 +505,87 @@ def test_version_params_are_their_own_primary_group():
     assert "GIT_BRANCH" not in by_group.get("pipeline", [])
 
 
+def test_build_links_use_the_browser_facing_host():
+    """The API base is localhost on the deploy host; a link with localhost in it
+    points a client browser at its own machine."""
+    import jenkins
+
+    base, public, job = jenkins.BASE, jenkins.PUBLIC_BASE, jenkins.JOB_PATH
+    try:
+        jenkins.BASE = "http://localhost:8889"
+        jenkins.JOB_PATH = "job/run_sushi"
+
+        jenkins.PUBLIC_BASE = "http://vercingetorix.broadinstitute.org:8889"
+        assert jenkins.build_url(3305) == \
+            "http://vercingetorix.broadinstitute.org:8889/job/run_sushi/3305/"
+        assert "localhost" not in jenkins.build_url(3305)
+
+        # Unset, it falls back to BASE, which is right when both are the same host.
+        jenkins.PUBLIC_BASE = jenkins.BASE
+        assert jenkins.build_url(3305) == "http://localhost:8889/job/run_sushi/3305/"
+    finally:
+        jenkins.BASE, jenkins.PUBLIC_BASE, jenkins.JOB_PATH = base, public, job
+
+
+def test_control_barcode_lookup_picks_the_right_source():
+    """A screen has one ladder. Which source says so depends on whether COMET is
+    about to rewrite sample_meta.csv."""
+    from fastapi.testclient import TestClient
+
+    import app as app_module
+    import screen_meta
+
+    screen_meta.control_barcodes = lambda screen: (
+        ["ha_mod"] if screen == "APS007" else
+        ["h-a", "ha_mod"] if screen == "MIXED" else []
+    )
+    client = TestClient(app_module.app)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        build_dir = Path(tmp)
+        (build_dir / "sample_meta.csv").write_text(
+            "pcr_well,cb_ladder\nA01,Ha_mod\nA02,Ha_mod\n")
+
+        # File on disk wins when the build will read it as-is. APS007 really does
+        # differ between the two: Ha_mod in the csv, ha_mod in the view.
+        r = client.get("/api/control-barcodes",
+                       params={"screen": "APS007", "build_dir": str(build_dir)}).json()
+        assert r == {"value": "Ha_mod", "values": ["Ha_mod"],
+                     "source": "sample_meta.csv", "error": None}, r
+
+        # COMET is going to regenerate it, so the view is what the build sees.
+        r = client.get("/api/control-barcodes",
+                       params={"screen": "APS007", "build_dir": str(build_dir),
+                               "create_sample_meta": "true"}).json()
+        assert r["value"] == "ha_mod" and r["source"] == "v_seq_metadata", r
+
+        # No file and no COMET: fall back to the view rather than giving nothing.
+        r = client.get("/api/control-barcodes",
+                       params={"screen": "APS007", "build_dir": str(tmp) + "/nope"}).json()
+        assert r["value"] == "ha_mod", r
+
+        # More than one value breaks the invariant: report it, do not choose.
+        r = client.get("/api/control-barcodes",
+                       params={"screen": "MIXED", "create_sample_meta": "true"}).json()
+        assert r["value"] is None, "must not autofill an ambiguous screen"
+        assert r["values"] == ["h-a", "ha_mod"]
+        assert "exactly one" in r["error"], r["error"]
+
+        # A screen with nothing recorded is simply no answer, not an error.
+        r = client.get("/api/control-barcodes",
+                       params={"screen": "UNKNOWN", "create_sample_meta": "true"}).json()
+        assert r["value"] is None and r["error"] is None, r
+
+        # A csv without the column says so instead of looking empty.
+        (build_dir / "sample_meta.csv").write_text("pcr_well\nA01\n")
+        r = client.get("/api/control-barcodes",
+                       params={"screen": "APS007", "build_dir": str(build_dir)}).json()
+        assert "cb_ladder" in r["error"], r
+
+        assert client.get("/api/control-barcodes").json()["error"] == \
+            "need a screen or a build directory"
+
+
 def test_params_yml_matches_the_groovy_job():
     """Drift here is the one failure mode that breaks every launch at once."""
     source = GROOVY.read_text()

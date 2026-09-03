@@ -24,9 +24,11 @@ remains a working fallback.
 - **Three tiers instead of one flat list.** Build identity, modules and
   controls are on screen; the ~60 filenames, column names and QC thresholds sit
   behind one disclosure.
-- **Real values where they exist.** `CONTROL_BARCODE_META` offers the control
-  barcode ladders actually registered in cellDB. It stays a text field, because
-  the pipeline also accepts a CSV filename in the build directory.
+- **Real values where they exist.** `CONTROL_BARCODE_META` is **filled in from
+  the screen's own sample metadata** — a screen has exactly one control barcode
+  ladder, so it can be looked up rather than remembered. It also offers the
+  ladders registered in cellDB, and stays a text field because the pipeline
+  accepts a CSV filename in the build directory too.
 - **Pipeline version is its own section, populated from GitHub.** `GIT_BRANCH`
   is a list of real branches and `COMMIT_ID` a list of real commits on the one
   you picked, subject and date included; with "use latest" on it names the head
@@ -87,6 +89,7 @@ process that has never seen the session.
     ui/backend/session.py      Jenkins-credential sessions
     ui/backend/celldb.py       cellDB lookups for form suggestions
     ui/backend/github.py       branch and commit lists for the version section
+    ui/backend/screen_meta.py  per-screen values from the view create_sample_meta reads
     ui/backend/db.py           SQLite run records
     ui/backend/app.py          FastAPI routes
     ui/frontend/               React + Vite SPA
@@ -110,6 +113,28 @@ keeps its job default. The health check reports them separately. Note that the
 parameter-separator plugin declares section headings (`core_modules`,
 `do_not_edit`, …) as parameter definitions — those are filtered out, or they
 show up as permanent phantom drift.
+
+## Control barcodes
+
+A screen has exactly one control barcode ladder, so `CONTROL_BARCODE_META` is
+looked up instead of carried over from whatever the last build used. Verified
+across MTS032, EPS008, APS007 and CPS016: one distinct value each, matching
+their `config.json`.
+
+Which source is authoritative depends on what the run will do:
+
+- **`CREATE_SAMPLE_META` off** — the build reads the `sample_meta.csv` already
+  in the build directory, so its `cb_ladder` column is what matters.
+- **`CREATE_SAMPLE_META` on** — COMET is about to regenerate that file, so
+  `v_seq_metadata.control_barcodes` is what the build will end up seeing.
+  (`create_sample_meta.py` renames the column on the way.)
+
+That distinction is not academic: `APS007` has `Ha_mod` in its csv and `ha_mod`
+in the view.
+
+Two values for one screen is an anomaly, not a choice — the form says so and
+fills in nothing. A manual edit is never overwritten, and the field is badged
+with the source when the value came from a lookup.
 
 ## Screen-type defaults
 
@@ -143,6 +168,7 @@ differ.
 | --- | --- | --- |
 | `JENKINS_URL` | `http://localhost:8080` | this VM runs Jenkins on **8889**, from a bare .war as `espresso` with no systemd unit |
 | `JENKINS_JOB_PATH` | `job/sushi` | this VM's job is **`job/run_sushi`**. Nested folders: `job/prism/job/sushi` |
+| `JENKINS_PUBLIC_URL` | same as `JENKINS_URL` | where a **browser** reaches Jenkins. `JENKINS_URL` is localhost on the deploy host, which is the client's own laptop when followed as a link |
 | `JENKINS_USER` / `JENKINS_TOKEN` | unset | optional service account, used only when no user session applies |
 | `PRISMSEQ_ROOT` | `/cmap/obelix/pod/prismSeq` | root of the build tree the browser walks |
 | `SUSHI_UI_DB` | `ui/backend/sushi_ui.db` | put this somewhere backed up |
@@ -152,6 +178,8 @@ differ.
 | `CLUE_API_KEY_FILE` | `/local/jenkins/.clue_api_key` | for cellDB lookups; `CLUE_API_KEY` overrides |
 | `CLUE_API_URL` | `https://api.clue.io/api/` | |
 | `SUSHI_UI_CELLDB_TTL` | `3600` | cellDB lookups are cached this long |
+| `SEQ_META_URL` | `https://api.theprismlab.org/api/v_seq_metadata` | the view `create_sample_meta` reads; used to look up a screen's control barcode ladder |
+| `SUSHI_UI_SCREEN_META_TTL` | `900` | per-screen lookups are cached this long |
 | `GITHUB_REPO` | `theprismlab/sushi` | source of the branch and commit lists |
 | `GITHUB_TOKEN` | unset | only needed if the repo goes private or 60 req/hr unauthenticated is not enough |
 | `SUSHI_UI_GITHUB_TTL` | `300` | branch and commit lookups are cached this long |

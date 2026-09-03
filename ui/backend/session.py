@@ -47,9 +47,13 @@ def verify(user: str, password: str) -> dict:
         raise AuthError(f"Could not reach Jenkins at {jenkins.BASE}: {exc}") from exc
 
     if r.status_code in (401, 403):
-        raise AuthError("Jenkins rejected those credentials. If your password is correct, this "
-                        "Jenkins may only accept API tokens over the API -- generate one at "
-                        "/user/<you>/configure and use that instead.")
+        raise AuthError(
+            "Jenkins rejected those credentials. If your password is correct, this Jenkins may "
+            "only accept API tokens over the API -- generate one at "
+            # PUBLIC_BASE, not BASE: this is a link for the person reading it,
+            # and BASE is localhost on the deployment host.
+            f"{jenkins.PUBLIC_BASE}/user/{user}/configure and use that instead."
+        )
     if not r.ok:
         raise AuthError(f"Jenkins returned {r.status_code} for the credential check.")
 

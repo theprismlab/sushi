@@ -8,6 +8,10 @@ scratch/
 .aider*
 __pycache__/
 *.pyc
+# setuptools leaves these behind whenever the root project is built locally
+# (e.g. `uv run` from the repo root, which resolves the root pyproject)
+*.egg-info/
+build/
 .venv/
 ui/frontend/node_modules/
 ui/frontend/dist/
