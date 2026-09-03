@@ -158,16 +158,22 @@ void startContainer(String image, String commitLabel = null) {
     sh """
         ${PODMAN} rm -f ${env.CONTAINER} 2>/dev/null || true
 
-        # --network=host: the UI has to reach Jenkins on localhost:8080, and it
+        # --network=host: the UI has to reach Jenkins on localhost:8889, and it
         #   also publishes DEPLOY_PORT without a rootless port mapping.
         # JENKINS_NODE_COOKIE: stops ProcessTreeKiller reaping conmon when this
         #   build finishes, which would kill the container.
+        # .clue_api_key: mounted read-only at the same path the host uses, so
+        #   CLUE_API_KEY_FILE needs no override. Same mount launch_job.sh gives
+        #   the pipeline containers. Without it the cellDB lookups that populate
+        #   CONTROL_BARCODE_META fail with ENOENT even though the file exists --
+        #   the hand-started instance ran on the host, where the path resolved.
         JENKINS_NODE_COOKIE=dontKillMe ${PODMAN} run -d \
           --name ${env.CONTAINER} \
           --network=host \
           --label sushi.commit=${commit} \
           --label sushi.branch=${env.DEPLOY_BRANCH} \
           -e SUSHI_ENV=${env.DEPLOY_ENV} \
+          -e SUSHI_SERVICE_ACCOUNT=\$(id -un) \
           -e SUSHI_COMMIT=${commit} \
           -e SUSHI_BRANCH=${env.DEPLOY_BRANCH} \
           -e PORT=${env.DEPLOY_PORT} \
@@ -178,6 +184,7 @@ void startContainer(String image, String commitLabel = null) {
           -e SUSHI_UI_PRESETS=/data/presets.yml \
           -v ${env.DEPLOY_VOLUME}:/data \
           -v /cmap/obelix/pod/prismSeq:/cmap/obelix/pod/prismSeq \
+          -v /local/jenkins/.clue_api_key:/local/jenkins/.clue_api_key:ro \
           ${image}
     """
 }

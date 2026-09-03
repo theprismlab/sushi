@@ -251,7 +251,7 @@ def _archive_blockers(build_dir: Path) -> list[str]:
         return []
     return [
         f"Cannot archive {' or '.join(present)}: {build_dir} is not writable by "
-        f"{getpass.getuser()}, the account running this service. Either make the directory "
+        f"{SERVICE_ACCOUNT}, the account running this service. Either make the directory "
         f"group-writable (chmod g+w) or move the file aside by hand."
     ]
 
@@ -488,6 +488,11 @@ def get_outputs(run_id: int):
 
 
 SUSHI_ENV = os.environ.get("SUSHI_ENV", "local")
+
+# Inside a container getpass.getuser() is "root", which rootless podman maps to
+# the invoking host account -- so reporting it in a permissions error names the
+# wrong user at exactly the wrong moment. The deploy passes the real one in.
+SERVICE_ACCOUNT = os.environ.get("SUSHI_SERVICE_ACCOUNT") or getpass.getuser()
 
 
 @lru_cache(maxsize=1)

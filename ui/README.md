@@ -147,6 +147,7 @@ differ.
 | `CORS_ORIGINS` | `http://localhost:5173` | only needed for local dev against a remote backend |
 | `SUSHI_ENV` | `local` | `production` or `develop`; anything else banners itself as non-production |
 | `SUSHI_COMMIT` / `SUSHI_BRANCH` | unset | set by the deploy job, since the image carries no `.git` |
+| `SUSHI_SERVICE_ACCOUNT` | the process owner | set by the deploy job; in a container the process owner is `root`, not the host account permissions actually depend on |
 
 The UI reads the clue API key for cellDB lookups. It is used server-side only
 and never appears in a response — but it is a change from the original design,
