@@ -1,0 +1,293 @@
+:root {
+  --bg: #0f1115;
+  --card: #171a21;
+  --card-2: #1e222b;
+  --line: #2a2f3a;
+  --text: #e6e8ec;
+  --muted: #8b93a3;
+  --accent: #6ea8fe;
+  --ok: #4ec98a;
+  --warn: #e8c468;
+  --bad: #f0776a;
+  --busy: #6ea8fe;
+  --radius: 8px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+code, pre, .log { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+a { color: var(--accent); }
+h2 { font-size: 17px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+h3 { font-size: 14px; margin: 18px 0 8px; color: var(--text); }
+h3:first-child { margin-top: 0; }
+p { margin: 4px 0; }
+
+.muted { color: var(--muted); font-weight: 400; }
+.small { font-size: 12px; }
+.help { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+.wrap { overflow-wrap: anywhere; }
+.warn-text { color: var(--warn); }
+
+/* ---------------------------------------------------------------- layout */
+
+.topbar {
+  display: flex; align-items: center; gap: 24px;
+  padding: 0 20px; height: 52px;
+  background: var(--card); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 10;
+}
+.brand { font-weight: 600; letter-spacing: 0.3px; display: flex; align-items: baseline; gap: 8px; }
+.topbar nav { display: flex; gap: 4px; flex: 1; }
+.topbar nav a {
+  padding: 6px 12px; border-radius: var(--radius);
+  color: var(--muted); text-decoration: none;
+}
+.topbar nav a:hover { background: var(--card-2); color: var(--text); }
+.topbar nav a.active { background: var(--card-2); color: var(--text); }
+.who { display: flex; align-items: center; gap: 8px; }
+.who strong { font-size: 13px; }
+
+.wall { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+.wall-card { width: 100%; max-width: 380px; margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.wall-card .brand { font-size: 18px; }
+.wall-card .field input { width: 100%; }
+
+.page { max-width: 1080px; margin: 0 auto; padding: 20px; }
+
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px; margin-bottom: 16px;
+}
+.card.sticky { position: sticky; bottom: 0; box-shadow: 0 -8px 24px rgba(0,0,0,0.4); }
+
+/* ---------------------------------------------------------------- banners */
+
+.banner {
+  border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px;
+  border-left: 3px solid;
+}
+.banner.error { background: rgba(240,119,106,0.1); border-color: var(--bad); }
+.banner.warn  { background: rgba(232,196,104,0.1); border-color: var(--warn); }
+.banner ul { margin: 6px 0 0; padding-left: 20px; }
+.banner strong { display: block; margin-bottom: 4px; }
+
+/* ----------------------------------------------------------------- inputs */
+
+input[type='text'], input:not([type]), select, textarea {
+  background: var(--card-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 8px; font: inherit; width: 100%;
+}
+input:focus, select:focus, textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+input[type='checkbox'] { width: auto; accent-color: var(--accent); }
+textarea { resize: vertical; }
+/* A comma list has no spaces, so it is a single word: without this the
+   textarea scrolls sideways instead of wrapping and we are no better off
+   than the one-line input was. */
+.field textarea, table.mini textarea { overflow-wrap: anywhere; line-height: 1.45; }
+
+button, .button {
+  background: var(--card-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 6px; padding: 7px 14px; font: inherit; cursor: pointer;
+  text-decoration: none; display: inline-block;
+}
+button:hover:not(:disabled), .button:hover { border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--accent); color: #0b1220; border-color: var(--accent); font-weight: 600; }
+button.disclosure {
+  background: none; border: none; padding: 4px 0; color: var(--accent);
+  text-align: left; width: 100%;
+}
+
+.checkbox { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
+
+/* ------------------------------------------------------- directory browser */
+
+.browser { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-top: 12px; }
+
+.crumbs {
+  display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+  padding: 6px 8px; background: var(--card-2); border-bottom: 1px solid var(--line);
+}
+.crumb {
+  background: none; border: none; padding: 3px 6px; border-radius: 4px;
+  color: var(--accent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+}
+.crumb:hover { background: rgba(110, 168, 254, 0.12); }
+.crumb-sep { color: var(--muted); }
+.picker-filter {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px; border-bottom: 1px solid var(--line);
+}
+.picker-filter input { font-size: 12.5px; padding: 5px 8px; }
+.picker-filter .small { white-space: nowrap; flex-shrink: 0; }
+
+.entries { max-height: 320px; overflow-y: auto; }
+.entry-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); }
+.entry-row:last-child { border-bottom: none; }
+.entry-row.selected { background: rgba(110, 168, 254, 0.14); }
+.entry-row.selected .entry-name { color: var(--accent); font-weight: 600; }
+/* Keyboard highlight, distinct from the current selection. */
+.entry-row.active { background: var(--card-2); box-shadow: inset 2px 0 0 var(--accent); }
+
+.entry {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+  background: none; border: none; border-radius: 0; padding: 7px 10px;
+  text-align: left; font-size: 13px;
+}
+.entry:hover:not(:disabled) { background: var(--card-2); border-color: transparent; }
+.entry.up { width: 100%; border-bottom: 1px solid var(--line); color: var(--muted); }
+.entry-icon { color: var(--muted); width: 12px; flex-shrink: 0; }
+.entry-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.entry-date { margin-left: auto; font-size: 11px; flex-shrink: 0; }
+.entry-open {
+  border: none; border-left: 1px solid var(--line); border-radius: 0;
+  background: none; color: var(--muted); font-size: 11px; padding: 0 12px;
+}
+.entry-open:hover { background: var(--card-2); color: var(--accent); border-color: var(--line); }
+.entry-msg { padding: 10px; }
+
+/* The prismSeq root is fixed, so it is shown as a non-editable adornment and
+   only the part after it is typed. */
+.path-input {
+  display: flex; align-items: stretch;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--card-2); overflow: hidden;
+}
+.path-input:focus-within { border-color: var(--accent); outline: 1px solid var(--accent); }
+.path-input .path-prefix {
+  display: flex; align-items: center; flex-shrink: 0;
+  padding: 6px 4px 6px 8px; border-right: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22); color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+  white-space: nowrap; user-select: none;
+}
+.path-input input {
+  flex: 1; min-width: 0; border: none; border-radius: 0; background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+}
+.path-input input:focus { outline: none; }
+
+/* ------------------------------------------------------------------ forms */
+
+.grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px; margin-top: 12px;
+}
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 13px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.field .pname { font-size: 10.5px; color: var(--muted); }
+.field.preset-set label { color: var(--accent); }
+.field.user-set label { color: var(--warn); }
+
+.req { font-size: 10px; color: var(--bad); text-transform: uppercase; letter-spacing: 0.5px; }
+.tag {
+  font-size: 10px; padding: 1px 6px; border-radius: 10px;
+  background: rgba(110,168,254,0.15); color: var(--accent); white-space: nowrap;
+}
+.tag.alt { background: rgba(232,196,104,0.15); color: var(--warn); }
+
+.preset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.preset {
+  display: flex; flex-direction: column; gap: 3px; align-items: flex-start;
+  padding: 12px; text-align: left;
+}
+.preset.on { border-color: var(--accent); background: rgba(110,168,254,0.1); }
+.preset span { font-size: 11.5px; }
+
+.module-block { margin-top: 18px; }
+.module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin-top: 8px; }
+.toggle {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto;
+  gap: 2px 8px; align-items: center;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--card-2); cursor: pointer; font-size: 13px;
+}
+.toggle input { grid-row: span 2; }
+.toggle .pname { grid-column: 2; font-size: 10.5px; color: var(--muted); }
+.toggle.on { border-color: rgba(78,201,138,0.5); }
+.toggle.preset-set span { color: var(--accent); }
+.toggle span { display: flex; align-items: center; gap: 6px; }
+
+.module-grid.readonly { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.chip { font-size: 12px; padding: 4px 8px; border-radius: 6px; background: var(--card-2); color: var(--muted); }
+.chip.on { color: var(--ok); }
+
+.launch-row { display: flex; align-items: center; gap: 14px; margin-top: 12px; flex-wrap: wrap; }
+.launch-row .muted { font-size: 12px; }
+
+/* ----------------------------------------------------------------- tables */
+
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; font-weight: 600; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
+
+table.runs { padding: 0; overflow: hidden; }
+table.runs td { font-size: 13px; }
+table.runs tbody tr:hover { background: var(--card-2); }
+table.runs a { text-decoration: none; }
+
+/* Parameter values are long unbroken strings -- comma-joined column lists and
+   absolute paths. Without a fixed layout the table sizes itself to its widest
+   cell and runs off the right of the page, so pin the columns and wrap inside
+   them. .table-scroll is the fallback for very narrow viewports. */
+table.mini { margin-top: 8px; table-layout: fixed; }
+table.mini th, table.mini td {
+  padding: 5px 8px; font-size: 12px;
+  overflow-wrap: anywhere; word-break: break-word;
+}
+table.mini tr.absent td { color: var(--muted); }
+table.mini tr.changed code { color: var(--warn); }
+
+.table-scroll { overflow-x: auto; max-width: 100%; }
+
+/* File | Parameter | On disk | Your value -- the two value columns need room. */
+table.mini.conflicts th:nth-child(1), table.mini.conflicts td:nth-child(1) { width: 15%; }
+table.mini.conflicts th:nth-child(2), table.mini.conflicts td:nth-child(2) { width: 23%; }
+
+/* Parameter | Value | Default */
+table.mini.full th:nth-child(1), table.mini.full td:nth-child(1) { width: 28%; }
+
+.pill {
+  display: inline-block; font-size: 11px; padding: 2px 9px; border-radius: 10px;
+  text-transform: lowercase; white-space: nowrap;
+}
+.pill.ok   { background: rgba(78,201,138,0.15); color: var(--ok); }
+.pill.bad  { background: rgba(240,119,106,0.15); color: var(--bad); }
+.pill.warn { background: rgba(232,196,104,0.15); color: var(--warn); }
+.pill.busy { background: rgba(110,168,254,0.15); color: var(--busy); }
+
+.filters { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; }
+.filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.filters select, .filters input { width: 150px; }
+.filters .count { margin-left: auto; }
+
+.pager { display: flex; gap: 12px; align-items: center; justify-content: center; }
+
+/* ----------------------------------------------------------------- detail */
+
+.head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat .muted { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.log {
+  background: #0a0c10; border: 1px solid var(--line); border-radius: 6px;
+  padding: 12px; max-height: 520px; overflow: auto;
+  font-size: 12px; line-height: 1.45; white-space: pre-wrap; margin: 8px 0 4px;
+}

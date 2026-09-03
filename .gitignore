@@ -6,3 +6,13 @@ scratch/
 /tests/assets/out/
 /tests/assets/build/
 .aider*
+__pycache__/
+*.pyc
+.venv/
+ui/frontend/node_modules/
+ui/frontend/dist/
+ui/backend/*.db
+# Screen-type defaults edited from the UI; presets.yml is the seed in git.
+ui/backend/presets.local.yml
+# pidfile and log from bin/sushi-ui
+run/

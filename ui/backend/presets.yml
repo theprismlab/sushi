@@ -1,0 +1,67 @@
+# Per-screen-type defaults -- the SEED for the editable store.
+#
+# This file is only read until someone saves on the Screen types page, which
+# writes SUSHI_UI_PRESETS (presets.local.yml by default) and takes over from
+# then on. Edit that through the UI, not this file; "Revert to shipped
+# defaults" deletes the store and comes back here.
+#
+# The values below were derived by diffing config.json + qc_params.json across
+# the reference builds named for each type. `reference` is a provenance note
+# only -- nothing reads those builds at runtime. Only values that actually
+# differ from params.yml defaults are listed; everything else falls through to
+# the catalog default, so the diff against "stock" stays obvious.
+#
+# `dir` is the directory under PRISMSEQ_ROOT that builds of this type live in.
+# It is deliberately separate from the SCREEN_TYPE parameter: two of the five
+# reference builds have a SCREEN_TYPE that does not match their directory
+# (see notes), and the directory is what actually locates the data.
+
+presets:
+  - id: MTS_SEQ
+    label: MTS — Multiplexed Titration Screen
+    dir: MTS_SEQ
+    reference: MTS032
+    params:
+      SCREEN_TYPE: MTS_SEQ
+
+  - id: EPS_SEQ
+    label: EPS — Extended Profiling Screen
+    dir: EPS_SEQ
+    reference: EPS008
+    params:
+      SCREEN_TYPE: EPS_SEQ
+      COUNT_THRESHOLD: '40'
+      nc_variability_threshold: '1.5'
+
+  - id: APS_SEQ
+    label: APS — Anchor Profiling Screen
+    dir: APS_SEQ
+    reference: APS007
+    # NOTE: APS007/config.json has SCREEN_TYPE=MTS_SEQ. Assumed to be a
+    # copy-paste error in that build rather than intent; using APS_SEQ here.
+    # Confirm before relying on this for a real APS run.
+    params:
+      SCREEN_TYPE: APS_SEQ
+
+  - id: AIR_SEQ
+    label: AIR — Anchor Irradiation Screen
+    dir: AIR_SEQ
+    reference: AIR002
+    # NOTE: SCREEN_TYPE has no AIR_SEQ choice in make_config_file.groovy, and
+    # Jenkins rejects out-of-range values for choice parameters. AIR002 ran
+    # with SCREEN_TYPE=APS_SEQ, so that is what we send. To make AIR_SEQ a
+    # first-class value, add it to the SCREEN_TYPE choice list in the groovy
+    # and to params.yml, then change this line.
+    params:
+      SCREEN_TYPE: APS_SEQ
+
+  - id: CPS_SEQ
+    label: CPS — Combination Profiling Screen
+    dir: CPS_SEQ
+    reference: CPS016
+    params:
+      SCREEN_TYPE: CPS_SEQ
+      COUNT_THRESHOLD: '100'
+      SYNERGY: true
+      SIG_COLS: 'cell_set,pert_type,pert_name,pert_id,pert_dose,pert_dose_unit,day,x_project_id,pert_plate,pert_vehicle,pert2_id,pert2_name,pert2_dose,pert2_dose_unit,pert2_vehicle,is_combination'
+

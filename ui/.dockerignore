@@ -1,0 +1,8 @@
+# Without this, `COPY backend/ ./` would clobber the venv built by uv sync
+# with the host's, and the frontend stage would copy a stale dist/.
+backend/.venv
+backend/*.db
+backend/__pycache__
+**/__pycache__
+frontend/node_modules
+frontend/dist

@@ -1,0 +1,142 @@
+#!/bin/bash
+# Start/stop/restart the sushi pipeline UI on vercingetorix-r8.
+#
+# Run this as `espresso`. Archiving a stale config.json writes into the build
+# directory, and those are espresso-owned and mode 755 -- as any other account
+# the archive step fails and the launch is refused.
+#
+#   sudo -u espresso -i          # then:
+#   /local/jenkins/sushi-ui/bin/sushi-ui restart
+#
+# There is no systemd unit yet (that needs root), so this runs detached and a
+# reboot loses it. A pidfile is used rather than pkill, because the pattern
+# "uvicorn app:app" also matches the shell running the pkill itself.
+set -u
+
+APP_DIR="${SUSHI_UI_APP_DIR:-/local/jenkins/sushi-ui}"
+BACKEND="$APP_DIR/ui/backend"
+RUN_DIR="${SUSHI_UI_RUN_DIR:-$APP_DIR/run}"
+PIDFILE="$RUN_DIR/sushi-ui.pid"
+LOG="$RUN_DIR/sushi-ui.log"
+PORT="${SUSHI_UI_PORT:-8100}"
+
+export JENKINS_URL="${JENKINS_URL:-http://localhost:8889}"
+export JENKINS_JOB_PATH="${JENKINS_JOB_PATH:-job/run_sushi}"
+export PRISMSEQ_ROOT="${PRISMSEQ_ROOT:-/cmap/obelix/pod/prismSeq}"
+# Outside the checkout, so a reclone or a git clean cannot take them with it.
+export SUSHI_UI_DB="${SUSHI_UI_DB:-/local/jenkins/sushi_ui.db}"
+export SUSHI_UI_PRESETS="${SUSHI_UI_PRESETS:-/local/jenkins/sushi_ui_presets.yml}"
+
+umask 002   # keep the pidfile, log, db and preset store group-writable
+
+mkdir -p "$RUN_DIR"
+
+# `kill -0` fails with EPERM for a process owned by another account, which
+# reads identically to "not running". /proc/<pid> exists regardless of owner.
+alive() {
+  [ -n "${1:-}" ] && [ -d "/proc/$1" ]
+}
+
+# Find our uvicorn by scanning /proc. /proc/<pid>/cmdline is world-readable,
+# unlike `ss -p`, which only reports PIDs for sockets owned by the caller --
+# so this is the only form that works when the service was started by the
+# other account.
+find_pid() {
+  local pid cmd
+  for pid in /proc/[0-9]*; do
+    pid=${pid#/proc/}
+    cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null) || continue
+    case "$cmd" in
+      *uvicorn*app:app*"--port $PORT"*) echo "$pid"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+pidfile_pid() {
+  [ -f "$PIDFILE" ] || return 1
+  local pid
+  pid=$(cat "$PIDFILE" 2>/dev/null) || return 1
+  alive "$pid" || return 1
+  echo "$pid"
+}
+
+running() {
+  pidfile_pid >/dev/null || find_pid >/dev/null
+}
+
+owner_of() {
+  ps -o user= -p "$1" 2>/dev/null | tr -d ' '
+}
+
+stop() {
+  local pid owner me
+  pid=$(pidfile_pid) || pid=$(find_pid) || pid=""
+  if [ -z "$pid" ]; then
+    echo "not running"
+    rm -f "$PIDFILE" 2>/dev/null
+    return 0
+  fi
+
+  owner=$(owner_of "$pid")
+  me=$(id -un)
+  if ! kill "$pid" 2>/dev/null; then
+    echo "cannot stop pid $pid: it is running as '${owner:-unknown}' and you are '$me'."
+    echo "stop it as that account first:"
+    echo "  sudo -u ${owner:-espresso} $APP_DIR/bin/sushi-ui stop"
+    return 1
+  fi
+
+  for _ in $(seq 20); do
+    alive "$pid" || break
+    sleep 0.25
+  done
+  alive "$pid" && kill -9 "$pid" 2>/dev/null
+  rm -f "$PIDFILE" 2>/dev/null
+  echo "stopped $pid (was running as ${owner:-unknown})"
+}
+
+start() {
+  local existing
+  existing=$(pidfile_pid) || existing=$(find_pid) || existing=""
+  if [ -n "$existing" ]; then
+    echo "already running as pid $existing (user $(owner_of "$existing"))"
+    return 0
+  fi
+  # Anything else on the port is not ours; say so rather than emitting a bare
+  # EADDRINUSE from uvicorn.
+  if ss -ltn 2>/dev/null | grep -q ":$PORT "; then
+    echo "port $PORT is bound by something that is not this service; investigate before starting"
+    return 1
+  fi
+
+  cd "$BACKEND" || { echo "no backend at $BACKEND"; return 1; }
+  setsid nohup .venv/bin/uvicorn app:app --host 0.0.0.0 --port "$PORT" \
+    > "$LOG" 2>&1 < /dev/null &
+  echo $! > "$PIDFILE"
+  sleep 4
+  if running; then
+    echo "started $(cat "$PIDFILE") on port $PORT as $(id -un)"
+  else
+    echo "failed to start; last lines of $LOG:"
+    tail -15 "$LOG"
+    return 1
+  fi
+}
+
+case "${1:-}" in
+  start)   start ;;
+  stop)    stop ;;
+  restart) stop; start ;;
+  status)
+    pid=$(pidfile_pid) || pid=$(find_pid) || pid=""
+    if [ -n "$pid" ]; then
+      echo "running as pid $pid (user $(owner_of "$pid")) on port $PORT"
+    else
+      echo "not running"
+    fi
+    curl -s -o /dev/null -w "health http=%{http_code}\n" "http://localhost:$PORT/api/health"
+    ;;
+  log)     tail -"${2:-40}" "$LOG" ;;
+  *)       echo "usage: sushi-ui {start|stop|restart|status|log [n]}"; exit 2 ;;
+esac
