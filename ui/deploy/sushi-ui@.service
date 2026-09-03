@@ -1,0 +1,31 @@
+# One template, two instances: sushi-ui@main and sushi-ui@develop.
+# %i is the branch name, which is also the checkout directory.
+#
+#   install -m644 sushi-ui@.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now sushi-ui@main sushi-ui@develop
+
+[Unit]
+Description=sushi pipeline UI (%i)
+Documentation=https://github.com/cmap/sushi/blob/main/ui/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+# Same user as Jenkins: archiving a stale config.json writes into the build
+# directory, and the service has to read PRISMSEQ_ROOT.
+User=jenkins
+Group=jenkins
+WorkingDirectory=/opt/sushi-ui/%i/ui/backend
+EnvironmentFile=/opt/sushi-ui/%i/ui/deploy/env.%i
+ExecStart=/opt/sushi-ui/%i/ui/backend/.venv/bin/uvicorn app:app --host 0.0.0.0 --port ${PORT}
+Restart=on-failure
+RestartSec=5
+
+# The run database lives outside the checkout so a deploy cannot touch it.
+ReadWritePaths=/local/jenkins
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

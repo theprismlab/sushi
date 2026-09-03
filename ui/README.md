@@ -80,48 +80,79 @@ All via environment variables; every one has a working default.
     cd ui/frontend
     npm install && npm run dev                # http://localhost:5173, proxies /api to :8000
 
-## Deploying on vercingetorix-r8
+## Deploying
 
-The VM has Python 3.11.5, which satisfies `requires-python`. It has **no node**,
-so build the SPA elsewhere — it is a build-time dependency only. `uv` must be on
-the VM's PATH.
+Two environments on `vercingetorix-r8`, one per branch, auto-deployed on push:
 
-Build the SPA once; the backend serves `frontend/dist` directly, so there is no
-second web server to run.
+| Branch | Environment | Port | Run database |
+| --- | --- | --- | --- |
+| `main` | production | 8100 | `/local/jenkins/sushi_ui.db` |
+| `develop` | develop | 8101 | `/local/jenkins/sushi_ui_develop.db` |
 
-    # on any machine with node, then rsync ui/frontend/dist/ to the VM
-    cd ui/frontend && npm ci && npm run build
+Push to `develop` and it is live within two minutes. Merge to `main` and
+production follows. Nothing to run by hand.
 
-    # on the VM
-    cd /opt/sushi-ui/ui/backend && uv sync --no-dev --frozen
+**`develop` is not a sandbox.** There is one Jenkins job, so a build launched
+from the develop instance is a real pipeline run writing into the real build
+directory. Only the run history is separate. The UI shows an amber banner on
+any non-production instance, and the header always shows the environment and
+the deployed commit, so "did my change land?" is answerable from the page.
 
-`--frozen` installs exactly what `uv.lock` pins and fails rather than
-re-resolving; `--no-dev` leaves out httpx, which only `test_backend.py` needs.
-`uv sync` creates `.venv` in that directory, which is what the unit file below
-points at.
+### How it works
 
-`/etc/systemd/system/sushi-ui.service`:
+`ui/deploy/deploy.sh <branch>` fetches and exits immediately if the branch has
+not moved. Otherwise it resets the checkout, builds the SPA, syncs the venv and
+restarts the unit — then polls `/api/health` for 30s. **If the new commit does
+not come up healthy it resets to the previous commit, rebuilds and restarts**,
+so an unattended deploy cannot leave an environment dead.
 
-    [Unit]
-    Description=sushi pipeline UI
-    After=network.target jenkins.service
+    ui/deploy/deploy.sh            per-environment deploy; idempotent, cron-safe
+    ui/deploy/install.sh           one-time root bootstrap
+    ui/deploy/sushi-ui@.service    systemd template, %i is the branch
+    ui/deploy/env.main             production config
+    ui/deploy/env.develop          develop config
 
-    [Service]
-    User=jenkins
-    WorkingDirectory=/opt/sushi-ui/ui/backend
-    Environment=JENKINS_URL=http://localhost:8080
-    Environment=JENKINS_JOB_PATH=job/sushi
-    Environment=PRISMSEQ_ROOT=/cmap/obelix/pod/prismSeq
-    Environment=SUSHI_UI_DB=/local/jenkins/sushi_ui.db
-    ExecStart=/opt/sushi-ui/ui/backend/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8100
-    Restart=on-failure
+Three decisions worth knowing:
 
-    [Install]
-    WantedBy=multi-user.target
+- **Cron polling, not a webhook or hosted CI.** The VM is on an internal
+  network at `10.200.96.63`; github.com cannot reach it, so a webhook or a
+  GitHub-hosted runner has nothing to talk to. A self-hosted runner would work
+  but is another daemon to keep alive for what `git fetch` answers in 200ms.
+  Both cron entries exit silently when the branch has not moved.
+- **The SPA is built in a `node:20` podman container.** The VM has no node and
+  needs none at runtime; this avoids installing a toolchain on the host and
+  avoids committing `dist/` to the repo. `node_modules` is gitignored, so
+  `git reset --hard` leaves the npm cache intact between deploys.
+- **`deploy.sh` is wrapped in a `{ ... }` block.** A deploy can update
+  `deploy.sh` itself, and the brace forces bash to read the whole file before
+  executing, so a self-update cannot corrupt the run in progress.
 
-Run as `jenkins` (or a user in its group): archiving a stale `config.json`
-writes into the build directory, and the service needs to read
-`PRISMSEQ_ROOT`.
+### First-time setup
+
+    sudo REPO=git@github.com:cmap/sushi.git /path/to/sushi/ui/deploy/install.sh
+
+Clones `/opt/sushi-ui/main` and `/opt/sushi-ui/develop`, installs the systemd
+template and `/etc/cron.d/sushi-ui`, does the first deploy of each, and enables
+both units at boot. Idempotent — re-run it after changing the unit file or the
+schedule.
+
+### Operating it
+
+    systemctl status sushi-ui@main sushi-ui@develop
+    journalctl -u sushi-ui@develop -f            # application log
+    tail -f /var/log/sushi-ui-deploy.log         # deploy log
+    curl -s localhost:8100/api/health | jq       # environment, commit, jenkins, param drift
+
+    sudo /opt/sushi-ui/main/ui/deploy/deploy.sh main --force    # redeploy unchanged
+    sudo systemctl stop sushi-ui@develop                        # take an env down
+
+To roll production back, revert on `main` and push — cron redeploys within two
+minutes. The run database lives outside the checkout, so no deploy or rollback
+can touch run history.
+
+Ports and database paths live in `ui/deploy/env.<branch>`, which is read by
+systemd rather than the app, so changing one needs a restart (a `--force`
+deploy does that).
 
 ## Security
 

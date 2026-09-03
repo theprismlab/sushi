@@ -136,6 +136,9 @@ def test_launch_and_status_round_trip_against_a_stub_jenkins():
 
         values = catalog.defaults_for("MTS_SEQ", "MTS099")
         values["BUILD_DIR"] = str(build_dir)
+        # Explicit, not inherited: the sample-meta check only applies when the
+        # file is expected on disk rather than fetched from COMET.
+        values["CREATE_SAMPLE_META"] = False
         body = {"preset": "MTS_SEQ", "launched_by": "tester", "values": values}
 
         pre = client.post("/api/preflight", json=body).json()

@@ -7,7 +7,9 @@ the durable run log.
 import json
 import os
 import shutil
+import subprocess
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
@@ -337,10 +339,29 @@ def get_outputs(run_id: int):
 # ----------------------------------------------------------------- health
 
 
+SUSHI_ENV = os.environ.get("SUSHI_ENV", "local")
+
+
+@lru_cache(maxsize=1)
+def _deployed_version() -> dict:
+    """Which commit is actually serving, so "did my change land?" is answerable
+    from the page instead of by ssh."""
+    def git(*args):
+        return subprocess.run(("git", *args), cwd=Path(__file__).parent, check=True,
+                              capture_output=True, text=True, timeout=5).stdout.strip()
+    try:
+        return {"commit": git("rev-parse", "--short", "HEAD"),
+                "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
+                "committed_at": git("log", "-1", "--format=%cI")}
+    except (OSError, subprocess.SubprocessError):
+        return {"commit": "unknown", "branch": "unknown", "committed_at": None}
+
+
 @app.get("/api/health")
 def health():
     """Also surfaces drift between params.yml and the pipeline's parameters block."""
-    result = {"jenkins_url": jenkins.BASE, "job_path": jenkins.JOB_PATH,
+    result = {"environment": SUSHI_ENV, "version": _deployed_version(),
+              "jenkins_url": jenkins.BASE, "job_path": jenkins.JOB_PATH,
               "authenticated": jenkins.AUTH is not None, "db": str(db.DB_PATH)}
     try:
         declared = set(jenkins.declared_params())
