@@ -32,6 +32,10 @@ groups:
     label: Controls & signatures
     tier: primary
     help: How negative/positive controls and unique treatment conditions are identified.
+  - id: version
+    label: Pipeline version
+    tier: primary
+    help: Which revision of the pipeline code the build runs. Branches and commits are read from GitHub.
   - id: modules
     label: Core modules
     tier: primary
@@ -70,9 +74,9 @@ groups:
     label: Biomarker inputs
     tier: advanced
   - id: pipeline
-    label: Pipeline version
+    label: Other pipeline settings
     tier: advanced
-    help: Advanced users only. Changing these changes which code runs.
+    help: Advanced users only.
 
 params:
   # ---------------------------------------------------------------- build
@@ -605,22 +609,6 @@ params:
     label: DRC table
 
   # --------------------------------------------------------------- pipeline
-  - name: GIT_BRANCH
-    group: pipeline
-    type: string
-    default: main
-    label: Pipeline branch
-  - name: USE_LATEST
-    group: pipeline
-    type: bool
-    default: true
-    label: Use latest commit on branch
-  - name: COMMIT_ID
-    group: pipeline
-    type: string
-    default: ''
-    label: Pin to commit
-    help: Only used when "Use latest commit" is off.
   - name: TRIGGER_BUILD
     group: pipeline
     type: bool
@@ -639,3 +627,20 @@ params:
     default: log2_auc_multivariate_biomarkers*,log2_auc_univariate_biomarkers*,median_l2fc_multivariate_biomarkers*,median_l2fc_univariate_biomarkers*,DRC_TABLE*
     label: Merge patterns
     help: Patterns searched when merging files by project.
+  # ------------------------------------------------------- pipeline version
+  - name: GIT_BRANCH
+    group: version
+    type: string
+    default: main
+    label: Pipeline branch
+  - name: USE_LATEST
+    group: version
+    type: bool
+    default: true
+    label: Use latest commit on branch
+  - name: COMMIT_ID
+    group: version
+    type: string
+    default: ''
+    label: Pin to commit
+    help: Only used when "Use latest commit" is off.

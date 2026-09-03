@@ -451,6 +451,60 @@ def test_separator_pseudo_params_are_not_reported_as_drift():
     assert jenkins.real_parameters([{}]) == []
 
 
+def test_github_refs_degrade_instead_of_raising():
+    """A GitHub outage must not stop anyone launching a build, so refs() folds
+    the error into the payload and the form falls back to free text."""
+    import github
+
+    calls = []
+
+    def fake_get(path, **params):
+        calls.append((path, params))
+        if path == "branches":
+            return [{"name": "main"}, {"name": "develop"}, {"name": "aaa-old"}]
+        if path == "":
+            return {"default_branch": "main"}
+        if path == "commits":
+            return [{"sha": "abcdef1234", "commit": {
+                "message": "subject line\n\nbody", "author": {"name": "A", "date": "2026-09-03T00:00:00Z"}}}]
+        raise AssertionError(path)
+
+    github._cache.clear()
+    github._get = fake_get
+
+    refs = github.refs("develop")
+    assert refs["error"] is None
+    # Default branch first, then alphabetical -- not GitHub's own order.
+    assert refs["branches"] == ["main", "aaa-old", "develop"], refs["branches"]
+    assert refs["commits"][0]["sha"] == "abcdef1"
+    assert refs["commits"][0]["subject"] == "subject line", "only the first line"
+
+    # Cached: a second call for the same branch does not hit the API again.
+    before = len(calls)
+    github.refs("develop")
+    assert len(calls) == before, calls[before:]
+
+    def boom(path, **params):
+        raise github.GitHubError("no route to host")
+
+    github._cache.clear()
+    github._get = boom
+    broken = github.refs("develop")
+    assert broken["error"] == "no route to host"
+    assert broken["branches"] == [] and broken["commits"] == []
+
+
+def test_version_params_are_their_own_primary_group():
+    groups = {g["id"]: g for g in catalog.catalog()["groups"]}
+    assert groups["version"]["tier"] == "primary", "branch/commit must not be behind Advanced"
+    by_group = {}
+    for p in catalog.catalog()["params"]:
+        by_group.setdefault(p["group"], []).append(p["name"])
+    assert set(by_group["version"]) == {"GIT_BRANCH", "USE_LATEST", "COMMIT_ID"}, by_group["version"]
+    # Whatever is left in `pipeline` must not have followed them out.
+    assert "GIT_BRANCH" not in by_group.get("pipeline", [])
+
+
 def test_params_yml_matches_the_groovy_job():
     """Drift here is the one failure mode that breaks every launch at once."""
     source = GROOVY.read_text()

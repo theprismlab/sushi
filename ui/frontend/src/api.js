@@ -22,6 +22,7 @@ export const api = {
   buildPaths: () => request('/build-paths'),
   ls: (path) => request(`/ls?path=${encodeURIComponent(path || '')}`),
   suggestions: () => request('/suggestions'),
+  gitRefs: (branch) => request(`/git/refs?branch=${encodeURIComponent(branch || '')}`),
   screenTypes: () => request('/screen-types'),
   saveScreenTypes: (presets) =>
     request('/screen-types', { method: 'PUT', body: JSON.stringify({ presets }) }),

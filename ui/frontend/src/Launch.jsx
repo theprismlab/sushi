@@ -304,12 +304,17 @@ export default function Launch() {
       </section>
 
       <section className="card">
+        <h2>6. Pipeline version</h2>
+        <PipelineVersion values={values} stock={stock} fromPreset={fromPreset} onChange={setValue} />
+      </section>
+
+      <section className="card">
         <button className="disclosure" onClick={() => setShowAdvanced((s) => !s)}>
           {showAdvanced ? '▾' : '▸'} Advanced parameters
           <span className="muted">
             {' '}
             {byGroup.filter((g) => g.tier === 'advanced').reduce((n, g) => n + g.params.length, 0)}{' '}
-            settings — filenames, column names, QC thresholds, pipeline version
+            settings — filenames, column names, QC thresholds
           </span>
         </button>
         {showAdvanced &&
@@ -592,6 +597,114 @@ function parentPath(rel) {
 function changedClass(value, stock, fromPreset) {
   if (String(value) !== String(stock)) return fromPreset ? 'preset-set' : 'user-set'
   return ''
+}
+
+/** GIT_BRANCH / USE_LATEST / COMMIT_ID, populated from GitHub.
+ *
+ *  These three decide which code the build runs, which is why they get their
+ *  own section instead of sitting behind the advanced disclosure. Typed
+ *  freehand, a typo is only found when Jenkins fails to check out -- or, worse,
+ *  when it silently runs a revision nobody meant.
+ *
+ *  Both fields stay editable text if GitHub cannot be reached, so an outage
+ *  degrades the section rather than blocking a launch.
+ */
+function PipelineVersion({ values, stock, fromPreset, onChange }) {
+  const branch = values.GIT_BRANCH || ''
+  const useLatest = !!values.USE_LATEST
+  const [refs, setRefs] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    // Commits are fetched for the selected branch, so this refetches on change.
+    // The backend caches, so flipping between branches is not 20 API calls.
+    api.gitRefs(branch)
+      .then((r) => { if (!cancelled) setRefs(r) })
+      .catch(() => { if (!cancelled) setRefs({ branches: [], commits: [], error: 'lookup failed' }) })
+    return () => { cancelled = true }
+  }, [branch])
+
+  const branches = refs?.branches || []
+  const commits = refs?.commits || []
+  const head = commits[0]
+  // A branch set from a config.json or an old run may not exist any more.
+  // Keep it selectable and say so rather than silently snapping to another.
+  const unknownBranch = Boolean(branch && branches.length && !branches.includes(branch))
+
+  return (
+    <>
+      {refs?.error && (
+        <p className="help warn-text">
+          Could not read branches from GitHub ({refs.error}). Both fields are still editable.
+        </p>
+      )}
+
+      <div className="grid">
+        <div className={`field ${changedClass(branch, stock.GIT_BRANCH, fromPreset.includes('GIT_BRANCH'))}`}>
+          <label htmlFor="f-GIT_BRANCH">
+            Pipeline branch
+            {unknownBranch && <span className="tag alt">not on GitHub</span>}
+          </label>
+          {branches.length ? (
+            <select id="f-GIT_BRANCH" value={branch}
+                    onChange={(e) => onChange('GIT_BRANCH', e.target.value)}>
+              {unknownBranch && <option value={branch}>{branch} (not on GitHub)</option>}
+              {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          ) : (
+            <input id="f-GIT_BRANCH" value={branch}
+                   onChange={(e) => onChange('GIT_BRANCH', e.target.value)} />
+          )}
+          <code className="pname">GIT_BRANCH</code>
+          <p className="help">
+            {refs?.repo ? `Branches of ${refs.repo}.` : 'Branch of the sushi repo to run.'}
+          </p>
+        </div>
+
+        <div className="field">
+          <label htmlFor="f-USE_LATEST">Use latest commit on the branch</label>
+          <input id="f-USE_LATEST" type="checkbox" checked={useLatest}
+                 onChange={(e) => onChange('USE_LATEST', e.target.checked)} />
+          <code className="pname">USE_LATEST</code>
+          <p className="help">
+            {useLatest
+              ? head
+                ? `Will run ${head.sha} — ${head.subject}`
+                : 'Jenkins resolves the branch head at build time.'
+              : 'Off: pick the exact commit to run.'}
+          </p>
+        </div>
+
+        {!useLatest && (
+          <div className="field">
+            <label htmlFor="f-COMMIT_ID">
+              Commit <span className="req">required</span>
+            </label>
+            {commits.length ? (
+              <select id="f-COMMIT_ID" value={values.COMMIT_ID || ''}
+                      onChange={(e) => onChange('COMMIT_ID', e.target.value)}>
+                <option value="">Select a commit…</option>
+                {commits.map((c) => (
+                  <option key={c.full_sha} value={c.sha}>
+                    {c.sha} · {c.date?.slice(0, 10)} · {c.subject}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input id="f-COMMIT_ID" value={values.COMMIT_ID || ''}
+                     onChange={(e) => onChange('COMMIT_ID', e.target.value)} />
+            )}
+            <code className="pname">COMMIT_ID</code>
+            <p className="help">
+              {commits.length
+                ? `${commits.length} most recent commits on ${branch}.`
+                : 'Short SHA of the commit to check out.'}
+            </p>
+          </div>
+        )}
+      </div>
+    </>
+  )
 }
 
 function Field({ spec, value, stock, fromPreset, onChange }) {

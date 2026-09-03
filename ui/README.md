@@ -27,6 +27,13 @@ remains a working fallback.
 - **Real values where they exist.** `CONTROL_BARCODE_META` offers the control
   barcode ladders actually registered in cellDB. It stays a text field, because
   the pipeline also accepts a CSV filename in the build directory.
+- **Pipeline version is its own section, populated from GitHub.** `GIT_BRANCH`
+  is a list of real branches and `COMMIT_ID` a list of real commits on the one
+  you picked, subject and date included; with "use latest" on it names the head
+  commit you are about to run. These decide which code executes, so they are
+  not buried behind the advanced disclosure, and typing them freehand meant a
+  typo surfaced only when Jenkins failed to check out. Both degrade to free
+  text if GitHub cannot be reached.
 - **Preflight.** Before a build is queued: required fields, numeric fields,
   module dependencies (`AUC_BIOMARKER` without `DRC`, `GENERATE_QC_TABLES_2`
   without `COMPUTE_LFC`, …), whether the build directory exists, and whether
@@ -79,6 +86,7 @@ process that has never seen the session.
     ui/backend/jenkins.py      Jenkins REST client (trigger, queue, status, console)
     ui/backend/session.py      Jenkins-credential sessions
     ui/backend/celldb.py       cellDB lookups for form suggestions
+    ui/backend/github.py       branch and commit lists for the version section
     ui/backend/db.py           SQLite run records
     ui/backend/app.py          FastAPI routes
     ui/frontend/               React + Vite SPA
@@ -144,6 +152,9 @@ differ.
 | `CLUE_API_KEY_FILE` | `/local/jenkins/.clue_api_key` | for cellDB lookups; `CLUE_API_KEY` overrides |
 | `CLUE_API_URL` | `https://api.clue.io/api/` | |
 | `SUSHI_UI_CELLDB_TTL` | `3600` | cellDB lookups are cached this long |
+| `GITHUB_REPO` | `theprismlab/sushi` | source of the branch and commit lists |
+| `GITHUB_TOKEN` | unset | only needed if the repo goes private or 60 req/hr unauthenticated is not enough |
+| `SUSHI_UI_GITHUB_TTL` | `300` | branch and commit lookups are cached this long |
 | `CORS_ORIGINS` | `http://localhost:5173` | only needed for local dev against a remote backend |
 | `SUSHI_ENV` | `local` | `production` or `develop`; anything else banners itself as non-production |
 | `SUSHI_COMMIT` / `SUSHI_BRANCH` | unset | set by the deploy job, since the image carries no `.git` |

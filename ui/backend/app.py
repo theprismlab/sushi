@@ -22,6 +22,7 @@ from pydantic import BaseModel
 import catalog
 import celldb
 import db
+import github
 import jenkins
 import session
 
@@ -102,6 +103,18 @@ def reset_screen_types(sushi_sid: str | None = Cookie(default=None)):
     _require_identity(sushi_sid)
     catalog.reset_presets()
     return get_screen_types()
+
+
+@app.get("/api/git/refs")
+def git_refs(branch: str = ""):
+    """Branches, and commits on one of them, for the pipeline-version fields.
+
+    GIT_BRANCH and COMMIT_ID decide which code runs, so they should be picked
+    from what exists rather than typed. Errors are returned in the body rather
+    than raised: the fields degrade to free text, and a GitHub outage must not
+    block a launch.
+    """
+    return github.refs(branch.strip())
 
 
 @app.get("/api/suggestions")
