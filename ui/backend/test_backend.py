@@ -94,6 +94,50 @@ def test_stale_config_detects_silently_ignored_edits():
         assert _stale_config(build_dir, {"CTL_TYPES": "ctl_vehicle"}) is None
 
 
+def test_reordering_a_set_param_is_not_an_override_conflict():
+    """A reordered column list means the same thing; warning about it teaches
+    people to click through the warning that matters."""
+    with tempfile.TemporaryDirectory() as tmp:
+        build_dir = Path(tmp)
+        (build_dir / "config.json").write_text(json.dumps({
+            "SEQUENCING_INDEX_COLS": "flowcell_names,index_1,index_2,flowcell_lanes",
+            "ID_COLS": "pcr_plate,pcr_well",
+            "SEQ_TYPE": "DRAGEN",
+        }))
+
+        # Same members, different order, plus surplus whitespace.
+        assert _stale_config(build_dir, {
+            "SEQUENCING_INDEX_COLS": "flowcell_names, flowcell_lanes ,index_1,index_2",
+        }) is None
+
+        # ID_COLS is united into sample_id/facet_name/profile_id, so its order
+        # is visible in the output: a reordering there is a real difference.
+        reordered_id = _stale_config(build_dir, {"ID_COLS": "pcr_well,pcr_plate"})
+        assert [c["name"] for c in reordered_id["conflicts"]] == ["ID_COLS"], reordered_id
+
+        # A changed membership is still a conflict, order-insensitive or not.
+        dropped = _stale_config(build_dir, {"SEQUENCING_INDEX_COLS": "index_2,index_1,flowcell_names"})
+        assert [c["name"] for c in dropped["conflicts"]] == ["SEQUENCING_INDEX_COLS"], dropped
+        added = _stale_config(build_dir, {
+            "SEQUENCING_INDEX_COLS": "flowcell_lanes,index_2,index_1,flowcell_names,extra"})
+        assert [c["name"] for c in added["conflicts"]] == ["SEQUENCING_INDEX_COLS"], added
+
+        # Scalars are untouched by any of this.
+        assert [c["name"] for c in _stale_config(build_dir, {"SEQ_TYPE": "NovaSeq"})["conflicts"]] \
+            == ["SEQ_TYPE"]
+
+
+def test_unordered_params_are_only_the_verified_ones():
+    unordered = catalog.unordered_params()
+    for name in ("SEQUENCING_INDEX_COLS", "SIG_COLS", "CONTROL_COLS", "CELL_LINE_COLS",
+                 "CTL_TYPES", "PERT_PLATES"):
+        assert name in unordered, name
+    # ID_COLS reaches output through tidyr::unite; MERGE_PATTERNS match order
+    # was never verified. Neither may be marked without checking the pipeline.
+    for name in ("ID_COLS", "MERGE_PATTERNS", "SEQ_TYPE", "COUNT_THRESHOLD"):
+        assert name not in unordered, name
+
+
 def test_run_records_survive_a_round_trip():
     db.init()
     values = catalog.defaults_for("CPS_SEQ", "CPS017")

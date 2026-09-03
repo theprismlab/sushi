@@ -7,6 +7,13 @@
 # tier: primary   -> always visible in the launch form
 #       advanced  -> behind the "Show advanced parameters" toggle
 # order within a group is the display order.
+#
+# unordered: true -> comma-separated value the pipeline treats as a set, so a
+#   reordering is not a change and the override warning ignores it. Only set
+#   this where the pipeline source shows the value is exclusively grouped,
+#   joined or filtered by. It is NOT true of every list: ID_COLS is fed to
+#   tidyr::unite() to build sample_id, facet_name and profile_id, so its order
+#   shows up in the output and a reordering is a real difference.
 
 groups:
   - id: build
@@ -101,6 +108,7 @@ params:
       Must already contain the raw counts file from Nori. Derived from the
       preset and build name; edit only if the build lives somewhere else.
   - name: PERT_PLATES
+    unordered: true  # membership filter: df[df.pert_plate.isin(...)]
     group: build
     type: string
     default: ''
@@ -146,6 +154,7 @@ params:
     default: normalize_then_shift
     label: Normalization method
   - name: CTL_TYPES
+    unordered: true  # membership test: !pert_type %in% c(control_type, 'day_0')
     group: controls
     type: string
     default: ctl_vehicle
@@ -156,12 +165,14 @@ params:
     default: trt_poscon
     label: Positive control pert_type
   - name: CONTROL_COLS
+    unordered: true  # group_by(pick(all_of(union(...)))) and inner_join(by = union(...))
     group: controls
     type: string
     default: cell_set,day,pcr_plate,replicate_plate,pert_vehicle
     label: Control columns
     help: Sample meta columns describing an individual negative control condition.
   - name: SIG_COLS
+    unordered: true  # group_by(across(all_of(...))); synergy.R sorts them itself
     group: controls
     type: string
     default: cell_set,pert_type,pert_name,pert_id,pert_dose,pert_dose_unit,day,x_project_id,pert_plate,pert_vehicle
@@ -386,7 +397,7 @@ params:
     group: sequencing
     type: choice
     choices: [DRAGEN, MiSeq, HiSeq, NovaSeq]
-    default: NovaSeq
+    default: DRAGEN
     label: Sequencer / pipeline
     help: >
       Sets INDEX_1, INDEX_2 and BARCODE_SUFFIX. DRAGEN and NovaSeq reverse
@@ -397,6 +408,7 @@ params:
     default: forward_read_barcode
     label: Barcode column
   - name: SEQUENCING_INDEX_COLS
+    unordered: true  # distinct(pick(all_of(...))) and group_by in collate_counts
     group: sequencing
     type: string
     default: flowcell_names,flowcell_lanes,index_1,index_2
@@ -417,6 +429,7 @@ params:
 
   # --------------------------------------------------------------- columns
   - name: CELL_LINE_COLS
+    unordered: true  # group_by / join union, same as CONTROL_COLS
     group: columns
     type: string
     default: pool_id,depmap_id,lua,cell_set,growth_condition

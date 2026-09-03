@@ -436,3 +436,9 @@ def module_names() -> list[str]:
     """Params that decide which scripts run. Jenkins never writes these into
     config.json, so the run record is the only place they are preserved."""
     return [p["name"] for p in catalog()["params"] if p["group"] in MODULE_GROUPS]
+
+
+def unordered_params() -> frozenset[str]:
+    """Comma-separated params the pipeline treats as a set, so reordering them
+    is not a change. See the `unordered` note at the top of params.yml."""
+    return frozenset(p["name"] for p in catalog()["params"] if p.get("unordered"))

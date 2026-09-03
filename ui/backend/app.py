@@ -256,6 +256,24 @@ def _archive_blockers(build_dir: Path) -> list[str]:
     ]
 
 
+def _same_value(existing, submitted, unordered: bool) -> bool:
+    """Whether an on-disk value and a submitted one mean the same thing.
+
+    For the comma-separated params the pipeline only ever groups, joins or
+    filters by, a reordering is the same value -- warning about it trains
+    people to click through the warning. `unordered` comes from the catalog
+    rather than being guessed here, because it is not true of every list:
+    ID_COLS is united into sample_id, so its order is visible in the output.
+    """
+    if not unordered:
+        return str(existing) == str(submitted)
+
+    def members(value):
+        return {token.strip() for token in str(value).split(",") if token.strip()}
+
+    return members(existing) == members(submitted)
+
+
 def _stale_config(build_dir: Path, values: dict) -> dict | None:
     """Which submitted values an existing config.json would silently override.
 
@@ -273,16 +291,18 @@ def _stale_config(build_dir: Path, values: dict) -> dict | None:
         except (OSError, json.JSONDecodeError) as exc:
             conflicts.append({"file": filename, "name": "-", "existing": f"unreadable: {exc}", "submitted": "-"})
             continue
+        unordered = catalog.unordered_params()
         for name, submitted in values.items():
             if name not in existing or name in recomputed:
                 continue
-            if str(existing[name]) != str(submitted):
-                conflicts.append({
-                    "file": filename,
-                    "name": name,
-                    "existing": str(existing[name]),
-                    "submitted": str(submitted),
-                })
+            if _same_value(existing[name], submitted, name in unordered):
+                continue
+            conflicts.append({
+                "file": filename,
+                "name": name,
+                "existing": str(existing[name]),
+                "submitted": str(submitted),
+            })
     if not conflicts:
         return None
     return {
