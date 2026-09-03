@@ -105,7 +105,7 @@ export default function App() {
 
 function SignInWall({ onSignedIn }) {
   const [user, setUser] = useState('')
-  const [token, setToken] = useState('')
+  const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
@@ -114,7 +114,7 @@ function SignInWall({ onSignedIn }) {
     setBusy(true)
     setError(null)
     try {
-      onSignedIn(await api.signIn(user.trim(), token.trim()))
+      onSignedIn(await api.signIn(user.trim(), password.trim()))
     } catch (err) {
       setError(typeof err.detail === 'string' ? err.detail : err.message)
       setBusy(false)
@@ -136,18 +136,18 @@ function SignInWall({ onSignedIn }) {
                  autoComplete="username" autoFocus />
         </div>
         <div className="field">
-          <label htmlFor="wall-token">API token</label>
-          <input id="wall-token" type="password" value={token}
-                 onChange={(e) => setToken(e.target.value)} autoComplete="current-password" />
+          <label htmlFor="wall-password">Password</label>
+          <input id="wall-password" type="password" value={password}
+                 onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
           <p className="help">
-            Create one under <code>/user/&lt;you&gt;/configure</code> → API Token in Jenkins. Not
-            your web password.
+            If Jenkins rejects it, an API token from <code>/user/&lt;you&gt;/configure</code> works
+            here too — some Jenkins configurations only accept tokens over the API.
           </p>
         </div>
 
         {error && <div className="banner error">{error}</div>}
 
-        <button className="primary" disabled={busy || !user.trim() || !token.trim()}>
+        <button className="primary" disabled={busy || !user.trim() || !password.trim()}>
           {busy ? 'Checking…' : 'Sign in'}
         </button>
       </form>

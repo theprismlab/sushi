@@ -159,8 +159,8 @@ def test_launch_and_status_round_trip_against_a_stub_jenkins():
         assert client.post("/api/runs", json=body).status_code == 401
         assert client.get("/api/session").json()["identity"] is None
 
-        session.verify = lambda user, token: {"id": user, "full_name": "Test Er"}
-        signed_in = client.post("/api/session", json={"user": "tester", "token": "tok"})
+        session.verify = lambda user, password: {"id": user, "full_name": "Test Er"}
+        signed_in = client.post("/api/session", json={"user": "tester", "password": "pw"})
         assert signed_in.status_code == 200, signed_in.text
         assert signed_in.json()["full_name"] == "Test Er"
         assert client.get("/api/session").json()["identity"]["id"] == "tester"
@@ -177,7 +177,7 @@ def test_launch_and_status_round_trip_against_a_stub_jenkins():
         assert state["sent"]["COUNT_THRESHOLD"] == "100"
         # The build is queued as the signed-in user, and the run log records
         # the name Jenkins gave rather than anything the client claimed.
-        assert state["auth"] == ("tester", "tok")
+        assert state["auth"] == ("tester", "pw")
         assert client.get(f"/api/runs/{run_id}").json()["launched_by"] == "Test Er"
 
         # Still in the Jenkins queue: no build number yet.

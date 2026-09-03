@@ -119,14 +119,14 @@ def get_suggestions():
 
 class Credentials(BaseModel):
     user: str
-    token: str
+    password: str
 
 
 @app.post("/api/session")
 def sign_in(body: Credentials, response: Response):
     """Exchange Jenkins credentials for a session cookie."""
     try:
-        sid, identity = session.create(body.user, body.token)
+        sid, identity = session.create(body.user, body.password)
     except session.AuthError as exc:
         raise HTTPException(401, str(exc))
     response.set_cookie(session.COOKIE, sid, httponly=True, samesite="lax",
@@ -347,7 +347,7 @@ def launch(req: LaunchRequest, sushi_sid: str | None = Cookie(default=None)):
     )
 
     try:
-        queue_url = jenkins.trigger(values, auth=(who["user"], who["token"]))
+        queue_url = jenkins.trigger(values, auth=(who["user"], who["password"]))
     except jenkins.JenkinsError as exc:
         db.update(run_id, status="ERROR", error=str(exc), finished_at=db.now())
         raise HTTPException(502, f"Jenkins refused the build: {exc}")
@@ -398,7 +398,7 @@ def stop_run(run_id: int, sushi_sid: str | None = Cookie(default=None)):
     if not run["build_number"]:
         raise HTTPException(409, "build has no number yet; it is still queued")
     try:
-        jenkins.stop(run["build_number"], auth=(who["user"], who["token"]))
+        jenkins.stop(run["build_number"], auth=(who["user"], who["password"]))
     except jenkins.JenkinsError as exc:
         raise HTTPException(502, str(exc))
     return _public(_refresh(run_id) or db.get(run_id))

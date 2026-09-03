@@ -16,8 +16,8 @@ export const api = {
   catalog: () => request('/catalog'),
   health: () => request('/health'),
   session: () => request('/session'),
-  signIn: (user, token) =>
-    request('/session', { method: 'POST', body: JSON.stringify({ user, token }) }),
+  signIn: (user, password) =>
+    request('/session', { method: 'POST', body: JSON.stringify({ user, password }) }),
   signOut: () => request('/session', { method: 'DELETE' }),
   buildPaths: () => request('/build-paths'),
   ls: (path) => request(`/ls?path=${encodeURIComponent(path || '')}`),

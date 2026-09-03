@@ -44,20 +44,31 @@ remains a working fallback.
 
 ## Identity
 
-Sign-in is with a **Jenkins user ID and API token** (from
-`/user/<you>/configure` in Jenkins — not the web password). This is not
-decoration:
+Sign-in is with your **Jenkins user ID and password**. This is not decoration:
 
 - This Jenkins gives anonymous *read* access but not `Job/Build`, so a build
   cannot be queued without credentials at all.
 - It removes the self-reported name box. "Launched by" is whatever Jenkins says
   the account's full name is, so the run log cannot be filled in wrongly.
 
+Whatever is typed is passed straight through as HTTP basic auth to
+`/me/api/json`, so an **API token** from `/user/<you>/configure` works in the
+password field too. Some Jenkins configurations only accept tokens over the
+API rather than passwords; if a correct password is rejected, that is why, and
+the error message says so.
+
+The credential is verified against `/me/api/json` specifically because that
+endpoint answers 403 for anonymous and 401 for bad credentials — so a 200 means
+genuinely authenticated. Since this Jenkins grants anonymous read, a check
+against almost any other endpoint would let a wrong password "succeed" as
+anonymous; there is an explicit guard against that too.
+
 Credentials are exchanged for an opaque session id in an `HttpOnly` cookie and
-held **in memory** — a restart signs everyone out, and nothing writes API
-tokens to disk. That means **the service must run as a single worker**; with
-several uvicorn workers a request can land on a process that has never seen the
-session.
+held **in memory**, because the credential is not just checked at sign-in — it
+is replayed to Jenkins to queue the build as you. A restart therefore signs
+everyone out, and nothing is written to disk. It also means **the service must
+run as a single worker**; with several uvicorn workers a request can land on a
+process that has never seen the session.
 
 ## Layout
 
