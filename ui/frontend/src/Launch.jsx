@@ -118,17 +118,29 @@ export default function Launch() {
     })
   }, [touched])
 
-  // Preflight is cheap (stat calls and a json read) so run it as they type.
+  // Preflight is cheap (stat calls and a json read) so run it as they type --
+  // but not before a build directory is picked. Until then BUILD_DIR is still
+  // PRISMSEQ_ROOT, so every check is about the wrong directory: the required
+  // fields are empty because nothing is selected, and any stray config.json at
+  // the root reports a wall of overrides that has nothing to do with the build.
+  const selected = Boolean(buildPath.trim())
   const preset = resolved?.preset
   const request = useMemo(
-    () => (values && preset
+    () => (values && preset && selected
       ? { preset, values, archive_existing_config: archive }
       : null),
-    [preset, values, archive],
+    [preset, values, archive, selected],
   )
   const latest = useRef(0)
   useEffect(() => {
-    if (!request) return
+    if (!request) {
+      // Clearing the path must also clear the last result, or the warnings
+      // from the previous selection linger over an empty form.
+      latest.current += 1
+      setCheck(null)
+      setChecking(false)
+      return
+    }
     const token = ++latest.current
     setChecking(true)
     const timer = setTimeout(() => {
@@ -319,7 +331,12 @@ export default function Launch() {
 
       <section className="card sticky">
         <h2>Launch</h2>
-        {checking && <p className="muted">Checking…</p>}
+        {!selected && (
+          <p className="muted">
+            Pick a build directory in step 1 first. Nothing is checked until then.
+          </p>
+        )}
+        {selected && checking && <p className="muted">Checking…</p>}
 
         {check?.problems?.length > 0 && (
           <div className="banner error">
@@ -375,8 +392,15 @@ export default function Launch() {
             {launching ? 'Triggering…' : `Launch ${values.BUILD_NAME || 'build'}`}
           </button>
           <span className="muted wrap">
-            {values.BUILD_DIR} · branch {values.GIT_BRANCH}
-            {!values.TRIGGER_BUILD && ' · config only, no modules will run'}
+            {selected ? (
+              <>
+                {values.BUILD_DIR} · branch {values.GIT_BRANCH}
+                {!values.TRIGGER_BUILD && ' · config only, no modules will run'}
+              </>
+            ) : (
+              // Showing PRISMSEQ_ROOT here reads as if the root were the target.
+              'No build directory selected'
+            )}
           </span>
         </div>
       </section>
