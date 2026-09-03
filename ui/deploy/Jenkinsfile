@@ -87,9 +87,23 @@ pipeline {
                     env.RUNNING = sh(
                         script: "${PODMAN} ps --filter name=^${env.CONTAINER}\$ --filter status=running -q",
                         returnStdout: true).trim() ? 'yes' : 'no'
+                    // With --network=host our own container occupies the port, so
+                    // "port bound but our container is not running" means someone
+                    // else has it -- and uvicorn will die on EADDRINUSE while a
+                    // health check still gets answered by whatever is squatting.
+                    env.PORT_BOUND = sh(
+                        script: "(ss -lnt 2>/dev/null || true) | grep -q ':${env.DEPLOY_PORT} ' && echo yes || echo no",
+                        returnStdout: true).trim()
 
                     echo "${branch} -> ${env.DEPLOY_ENV} on :${env.DEPLOY_PORT}"
                     echo "target ${env.COMMIT}; live ${env.LIVE_COMMIT ?: 'nothing'} (running: ${env.RUNNING})"
+
+                    if (env.RUNNING == 'no' && env.PORT_BOUND == 'yes') {
+                        error("""Port ${env.DEPLOY_PORT} is already bound, but ${env.CONTAINER} is not \
+running -- so something else holds it. Deploying would start a container that dies on \
+EADDRINUSE while /api/health keeps answering from the squatter. Stop that process first \
+(if it is the hand-started instance: /local/jenkins/sushi-ui/bin/sushi-ui stop as espresso).""")
+                    }
 
                     env.SKIP = (env.RUNNING == 'yes' && env.LIVE_COMMIT == env.COMMIT
                                 && !params.FORCE_REDEPLOY) ? 'yes' : 'no'
@@ -119,12 +133,13 @@ pipeline {
         stage('Health check') {
             steps {
                 script {
-                    if (healthy()) {
+                    if (healthyAt(env.COMMIT)) {
                         echo "${env.DEPLOY_ENV} healthy on :${env.DEPLOY_PORT} at ${env.COMMIT}"
                         return
                     }
+                    diagnose()
                     if (env.SKIP == 'yes') {
-                        error("Container is running but /api/health is not responding on :${env.DEPLOY_PORT}.")
+                        error("Container is running but :${env.DEPLOY_PORT} is not serving ${env.COMMIT}.")
                     }
 
                     // An unattended deploy must not be able to leave an
@@ -134,7 +149,7 @@ pipeline {
                     }
                     echo "Unhealthy. Rolling back to ${env.LIVE_COMMIT ?: env.LIVE_IMAGE}."
                     startContainer(env.LIVE_IMAGE, env.LIVE_COMMIT)
-                    if (healthy()) {
+                    if (healthyAt(env.LIVE_COMMIT)) {
                         error("Rolled back to ${env.LIVE_COMMIT}; ${env.COMMIT} was NOT deployed.")
                     }
                     error("Rollback also failed. ${env.DEPLOY_ENV} is down and needs a human.")
@@ -189,15 +204,38 @@ void startContainer(String image, String commitLabel = null) {
     """
 }
 
-/** Poll /api/health until it answers, or give up after ~30s. */
-boolean healthy() {
+/** Poll /api/health until the *expected commit* answers, or give up after ~30s.
+ *
+ *  Checking only that something answers is not enough. With --network=host, a
+ *  container whose uvicorn died on EADDRINUSE leaves the previous occupant of
+ *  the port replying 200 -- which once made this job report "production healthy"
+ *  while the old hand-started instance was still serving. The commit is in the
+ *  payload, so match on it.
+ */
+boolean healthyAt(String commit) {
     return sh(script: """
         for i in \$(seq 1 30); do
-          if curl -fsS --max-time 3 http://localhost:${env.DEPLOY_PORT}/api/health >/dev/null 2>&1; then
+          if curl -fsS --max-time 3 http://localhost:${env.DEPLOY_PORT}/api/health 2>/dev/null \\
+             | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("version",{}).get("commit") == "${commit}" else 1)' 2>/dev/null; then
             exit 0
           fi
           sleep 1
         done
         exit 1
     """, returnStatus: true) == 0
+}
+
+/** Why the deploy is unhealthy, in the console, without needing shell access. */
+void diagnose() {
+    sh """
+        echo '--- container state ---'
+        ${PODMAN} inspect -f 'status={{.State.Status}} exit={{.State.ExitCode}}' ${env.CONTAINER} 2>&1 || echo 'no such container'
+        echo '--- container logs (last 50) ---'
+        ${PODMAN} logs --tail 50 ${env.CONTAINER} 2>&1 || true
+        echo '--- who holds :${env.DEPLOY_PORT} ---'
+        (ss -lntp 2>/dev/null || true) | grep ':${env.DEPLOY_PORT} ' || echo 'nothing listening'
+        echo '--- what answers there ---'
+        curl -s --max-time 3 http://localhost:${env.DEPLOY_PORT}/api/health || true
+        echo
+    """
 }
