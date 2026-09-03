@@ -5,6 +5,7 @@ import App from './App.jsx'
 import Launch from './Launch.jsx'
 import History from './History.jsx'
 import RunDetail from './RunDetail.jsx'
+import ScreenTypes from './ScreenTypes.jsx'
 import './styles.css'
 
 const router = createBrowserRouter([
@@ -16,6 +17,7 @@ const router = createBrowserRouter([
       { path: 'launch', element: <Launch /> },
       { path: 'runs', element: <History /> },
       { path: 'runs/:id', element: <RunDetail /> },
+      { path: 'screen-types', element: <ScreenTypes /> },
     ],
   },
 ])
