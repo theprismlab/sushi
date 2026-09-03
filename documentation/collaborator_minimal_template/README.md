@@ -17,8 +17,7 @@ the only three that matter: `ID_COLS=pcr_plate,pcr_well`,
 | File | Purpose |
 |---|---|
 | `sample_meta.csv` | the 7 required sample-metadata columns (below) |
-| `cell_line_meta.csv` | barcode → cell-line lookup |
-| `cell_set_and_pool_meta.csv` | which cell lines each `cell_set` expects |
+| `pool_ids.csv` | list of PRISM pools used in the experiment |
 
 No `CB_meta.csv` is needed — the pipeline tolerates its absence (see below).
 
@@ -92,8 +91,7 @@ is pure pass-through for these two steps and only matters if normalize/QC/LFC ar
 
 ## Companion files — required columns
 
-- `cell_line_meta.csv`: `depmap_id`, `lua`, `forward_read_barcode`
-- `cell_set_and_pool_meta.csv`: `cell_set`, `depmap_id`, `lua` (`pool_id` optional)
+- `pool_ids.csv` — `pool_id`
 
 ## Control barcodes: no `CB_meta.csv` required
 
