@@ -149,14 +149,43 @@ collate_fastq_reads= function(uncollapsed_raw_counts, sample_meta,
     print(detected_flowcells)
     validate_detected_flowcells(detected_flowcells, expected_flowcells)
     
-    # Filter for expected flowcells and add names/lanes columns ----
+    # Filter for expected flowcells ----
     # Filter using inner join with  merge from data.table instead of dplyr join to improve performance.
-    uncollapsed_raw_counts= data.table::merge.data.table(uncollapsed_raw_counts, data.table::setDT(expected_flowcells), 
+    # Dedupe to the join keys first. One flowcell_name + flowcell_lane pair can appear under several
+    # flowcell_names/flowcell_lanes groups - a lane 7 listed in both "1,4,7" and "2,5,7,8" - so joining
+    # on a table that still carries those columns duplicates every read in a shared lane.
+    valid_flowcells= expected_flowcells %>% dplyr::distinct(flowcell_name, flowcell_lane)
+    uncollapsed_raw_counts= data.table::merge.data.table(uncollapsed_raw_counts, data.table::setDT(valid_flowcells),
                                                          by= c('flowcell_name', 'flowcell_lane'), allow.cartesian= FALSE)
-    
+
+    # Reads that survive the flowcell filter are the denominator for index purity below. It is recorded
+    # here because attaching the flowcell group columns can legitimately expand the read table.
+    valid_read_total= sum(uncollapsed_raw_counts$n)
+
+    # Attach the flowcell group columns if they are used as sequencing index columns ----
+    # This expansion is undone by the sequencing_map join below, which drops the copies carrying the
+    # wrong group. Without flowcell_lanes to tell the groups apart both copies would survive that join,
+    # so error out on that combination rather than silently double counting reads.
+    carried_flowcell_cols= base::intersect(c('flowcell_names', 'flowcell_lanes'), sequencing_index_cols)
+    if(length(carried_flowcell_cols) > 0) {
+      flowcell_groups= expected_flowcells %>%
+        dplyr::distinct(pick(all_of(c('flowcell_name', 'flowcell_lane', carried_flowcell_cols))))
+      shared_lanes= flowcell_groups %>% dplyr::group_by(flowcell_name, flowcell_lane) %>%
+        dplyr::filter(dplyr::n() > 1) %>% dplyr::ungroup()
+      if(nrow(shared_lanes) > 0 && !'flowcell_lanes' %in% sequencing_index_cols) {
+        print('The following lanes are shared by multiple flowcell groups in the sample meta:')
+        print(shared_lanes)
+        stop('Shared lanes require "flowcell_lanes" in sequencing_index_cols to avoid double counting reads.')
+      }
+      uncollapsed_raw_counts= data.table::merge.data.table(uncollapsed_raw_counts, data.table::setDT(flowcell_groups),
+                                                           by= c('flowcell_name', 'flowcell_lane'),
+                                                           allow.cartesian= nrow(shared_lanes) > 0)
+    }
+
   } else {
     print('Flowcell_name and/or flowcell_lane are not detected in raw_counts_uncollapsed.')
     print('Proceeding without filtering flowcells.')
+    valid_read_total= sum(uncollapsed_raw_counts$n)
   }
 
   # Validation: Check that sequencing_index_cols exist in uncollapsed_raw_counts ----
@@ -182,7 +211,7 @@ collate_fastq_reads= function(uncollapsed_raw_counts, sample_meta,
   
   # Calculate index purity ----
   # This is only accurate if the Nori input file is small enough to fit into a chunk.
-  index_purity= sum(summed_reads$n) / sum(uncollapsed_raw_counts$n)
+  index_purity= sum(summed_reads$n) / valid_read_total
   # if index_purity is NA, make it 0
   if(is.na(index_purity)){
     index_purity = 0
