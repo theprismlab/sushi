@@ -85,7 +85,7 @@ def coerce_dataframe_types(df: pl.DataFrame, table: bigquery.Table) -> pl.DataFr
                     cast_expr = (
                         pl.col(col)
                         .map_elements(
-                            lambda x: _coerce_to_numeric(x, target_dtype),
+                            lambda l, dt=target_dtype: _coerce_to_numeric(l, dt),
                             return_dtype=target_dtype,
                         )
                         .alias(col)
